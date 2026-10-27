@@ -1,0 +1,365 @@
+# ============================================================
+# Конфигурация торговой стратегии
+# Версия: 0.1 (черновик)
+# Дата: __________
+# Инструменты: Brent, природный газ, индекс Мосбиржи
+# ============================================================
+
+meta:
+  version: "0.1"
+  status: "draft"          # draft | review | approved | live
+  author: "__________"
+  updated_at: "__________"
+  changelog:
+    - version: "0.1"
+      date: "__________"
+      note: "Первичная конфигурация по согласованным протоколам"
+
+# ------------------------------------------------------------
+# Глобальные настройки
+# ------------------------------------------------------------
+global:
+  timezone: "Europe/Moscow"
+  trading_enabled: true
+  dry_run: true                  # true = paper/логирование без реальных ордеров
+
+  # Приоритет состояний (чем выше в списке — тем выше приоритет)
+  state_priority:
+    - STALE_DATA
+    - GEO_PAUSE
+    - SCHEDULED_EVENT_PAUSE
+    - FALSE_BREAKOUT_WAIT
+    - POST_NEWS_CONFIRMATION
+    - RECOVERY_CHECK
+    - MANUAL_REVIEW
+    - NORMAL
+
+  # Состояния, в которых новые входы запрещены
+  no_new_entries_states:
+    - STALE_DATA
+    - GEO_PAUSE
+    - SCHEDULED_EVENT_PAUSE
+    - FALSE_BREAKOUT_WAIT
+    - POST_NEWS_CONFIRMATION
+    - RECOVERY_CHECK
+    - MANUAL_REVIEW
+
+  # Поведение по умолчанию, если ручное решение не получено
+  manual_review:
+    default_action: "keep_pause"     # keep_pause | resume | close_positions
+    timeout_min: 30
+    notify_channels: ["log", "telegram", "email"]
+    allowed_approvers: ["__________"]
+
+# ------------------------------------------------------------
+# Уведомления
+# ------------------------------------------------------------
+notifications:
+  levels: ["info", "warning", "critical"]
+  channels:
+    log:
+      enabled: true
+      level: "info"
+    telegram:
+      enabled: true
+      level: "warning"
+      chat_id: "__________"
+    email:
+      enabled: false
+      level: "critical"
+      recipients: ["__________"]
+    webhook:
+      enabled: false
+      level: "critical"
+      url: "__________"
+
+  events:
+    stale_data_detected: "critical"
+    stale_data_recovered: "warning"
+    geo_pause_entered: "critical"
+    geo_pause_exited: "warning"
+    scheduled_event_pause_entered: "info"
+    scheduled_event_pause_exited: "info"
+    false_breakout_detected: "warning"
+    manual_review_required: "critical"
+    entry_blocked: "info"
+    entry_resumed: "info"
+
+# ------------------------------------------------------------
+# Whitelist источников новостей
+# ------------------------------------------------------------
+news_sources:
+  reliable:
+    - "__________"      # напр. официальный сайт регулятора
+    - "__________"
+  official_confirm_required_for:
+    - "sanctions"
+    - "military_escalation"
+    - "supply_route_disruption"
+    - "central_bank_decision"
+    - "inflation_release"
+  min_independent_confirmations: 2
+  contradiction_rule: "keep_pause"   # keep_pause | manual_review
+
+# ------------------------------------------------------------
+# Параметры по инструментам
+# ------------------------------------------------------------
+instruments:
+
+  brent:
+    symbol: "BRN"
+    enabled: true
+    timeframes: ["M5", "M15", "H1"]
+
+    data_quality:
+      max_quote_age_ms: 3000
+      min_data_completeness: 0.98
+      max_gap_ms: 5000
+      require_volume: true
+
+    execution:
+      max_spread: 0.05
+      max_slippage: 0.03
+      min_liquidity: 1000
+
+    stale_data:
+      block_new_entries: true
+      require_full_recovery: true
+      recovery_check_bars: 3
+
+    scheduled_events:
+      event_types:
+        - "opec_report"
+        - "eia_crude_stocks"
+        - "fed_decision"
+        - "inflation_release"
+      pre_block_min: 15
+      post_block_min: 15
+      require_actual_vs_forecast: true
+      require_price_reaction_bars: 2
+
+    geo_events:
+      affected_by:
+        - "sanctions"
+        - "military_escalation"
+        - "supply_route_disruption"
+        - "opec_emergency"
+      confirm_timeout_min: 30
+      require_independent_confirmations: 2
+      resume_requires_stabilization: true
+      stabilization:
+        max_spread: 0.08
+        min_liquidity: 800
+        max_quote_age_ms: 3000
+        min_bars_after_event: 3
+
+    false_breakout:
+      impulse_atr_mult: 2.0
+      impulse_time_sec: 300
+      confirmation_bars: 2
+      level_tolerance_pct: 0.15
+      return_bars: 3
+      require_volume_confirmation: true
+      require_higher_tf_confirmation: true
+      on_uncertain: "skip_and_notify"
+
+    open_positions:
+      stale_data_action: "check_broker_stops_and_notify"
+      geo_event_action: "reassess_hypothesis"
+      scheduled_event_action: "keep_protective_stops"
+      early_exit_criteria:
+        hypothesis_changed: true
+        spread_above: 0.10
+        liquidity_below: 500
+        stale_data: true
+        geo_risk_level_above: "high"
+
+  natural_gas:
+    symbol: "NG"
+    enabled: true
+    timeframes: ["M5", "M15", "H1"]
+
+    data_quality:
+      max_quote_age_ms: 4000
+      min_data_completeness: 0.97
+      max_gap_ms: 6000
+      require_volume: true
+
+    execution:
+      max_spread: 0.02
+      max_slippage: 0.02
+      min_liquidity: 500
+
+    stale_data:
+      block_new_entries: true
+      require_full_recovery: true
+      recovery_check_bars: 3
+
+    scheduled_events:
+      event_types:
+        - "eia_gas_stocks"
+        - "weather_reports"
+        - "fed_decision"
+        - "inflation_release"
+      pre_block_min: 15
+      post_block_min: 15
+      require_actual_vs_forecast: true
+      require_price_reaction_bars: 2
+
+    geo_events:
+      affected_by:
+        - "sanctions"
+        - "military_escalation"
+        - "supply_route_disruption"
+        - "pipeline_shutdown"
+      confirm_timeout_min: 30
+      require_independent_confirmations: 2
+      resume_requires_stabilization: true
+      stabilization:
+        max_spread: 0.03
+        min_liquidity: 400
+        max_quote_age_ms: 4000
+        min_bars_after_event: 3
+
+    false_breakout:
+      impulse_atr_mult: 2.0
+      impulse_time_sec: 300
+      confirmation_bars: 2
+      level_tolerance_pct: 0.20
+      return_bars: 3
+      require_volume_confirmation: true
+      require_higher_tf_confirmation: true
+      on_uncertain: "skip_and_notify"
+
+    open_positions:
+      stale_data_action: "check_broker_stops_and_notify"
+      geo_event_action: "reassess_hypothesis"
+      scheduled_event_action: "keep_protective_stops"
+      early_exit_criteria:
+        hypothesis_changed: true
+        spread_above: 0.04
+        liquidity_below: 300
+        stale_data: true
+        geo_risk_level_above: "high"
+
+  moex_index:
+    symbol: "IMOEX"
+    enabled: true
+    timeframes: ["M5", "M15", "H1"]
+
+    data_quality:
+      max_quote_age_ms: 3000
+      min_data_completeness: 0.98
+      max_gap_ms: 5000
+      require_volume: true
+
+    execution:
+      max_spread: 0.50
+      max_slippage: 0.30
+      min_liquidity: 10000
+
+    stale_data:
+      block_new_entries: true
+      require_full_recovery: true
+      recovery_check_bars: 3
+
+    scheduled_events:
+      event_types:
+        - "cbr_decision"
+        - "inflation_release"
+        - "fed_decision"
+        - "gdp_release"
+      pre_block_min: 20
+      post_block_min: 20
+      require_actual_vs_forecast: true
+      require_price_reaction_bars: 2
+
+    geo_events:
+      affected_by:
+        - "sanctions"
+        - "military_escalation"
+        - "capital_controls"
+        - "trading_halts"
+      confirm_timeout_min: 30
+      require_independent_confirmations: 2
+      resume_requires_stabilization: true
+      stabilization:
+        max_spread: 0.60
+        min_liquidity: 8000
+        max_quote_age_ms: 3000
+        min_bars_after_event: 3
+
+    false_breakout:
+      impulse_atr_mult: 2.0
+      impulse_time_sec: 300
+      confirmation_bars: 2
+      level_tolerance_pct: 0.10
+      return_bars: 3
+      require_volume_confirmation: true
+      require_higher_tf_confirmation: true
+      on_uncertain: "skip_and_notify"
+
+    open_positions:
+      stale_data_action: "check_broker_stops_and_notify"
+      geo_event_action: "reassess_hypothesis"
+      scheduled_event_action: "keep_protective_stops"
+      early_exit_criteria:
+        hypothesis_changed: true
+        spread_above: 0.70
+        liquidity_below: 5000
+        stale_data: true
+        geo_risk_level_above: "high"
+
+# ------------------------------------------------------------
+# Аудит и логирование
+# ------------------------------------------------------------
+audit:
+  enabled: true
+  log_path: "logs/strategy_audit.log"
+  log_level: "info"
+  fields:
+    - timestamp
+    - instrument
+    - state
+    - reason
+    - source
+    - params_used
+    - decision
+    - result
+  retention_days: 180
+  version_params: true
+
+# ------------------------------------------------------------
+# Тестирование и приёмка
+# ------------------------------------------------------------
+testing:
+  backtest:
+    enabled: true
+    period: "__________"
+    data_source: "__________"
+  replay:
+    enabled: true
+  stress_tests:
+    - "data_gaps"
+    - "false_news"
+    - "spread_spike"
+    - "liquidity_drop"
+  paper_trading:
+    enabled: true
+    min_days: 14
+  acceptance_criteria:
+    max_drawdown_pct: __________
+    max_slippage_pct: __________
+    min_blocked_loss_avoided: __________
+    max_missed_profit_ratio: __________
+
+# ------------------------------------------------------------
+# Открытые вопросы (заполнить перед запуском в live)
+# ------------------------------------------------------------
+todo:
+  - "Восстановить полный контекст первого вопроса (варианты для устаревших котировок)"
+  - "Устранить путаницу B/Б/В — использовать только А/Б/В"
+  - "Заполнить whitelist news_sources.reliable"
+  - "Заполнить параметры по таймфреймам отдельно (если различаются)"
+  - "Утвердить ответственных в manual_review.allowed_approvers"
+  - "Утвердить acceptance_criteria"
