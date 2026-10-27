@@ -1,0 +1,181 @@
+"""REST-сборщик стакана и сделок для нескольких тикеров (GAZP + RUAL)."""
+
+import csv
+import os
+import time
+from datetime import datetime, timedelta, timezone
+
+from t_tech.invest import Client
+
+
+TOKEN = "t.ftq9FmrqQbILuhhqvE0t4YBkCsWJjRpuFqXBVu3mqViwX89DezqliMHxjcgbzkgri4mbHK3A37xlWaqSHeIWSQ"
+
+TICKERS = ["GAZP", "RUAL"]
+
+POLL_INTERVAL_SEC = 5
+TRADES_LOOKBACK_SEC = 60
+
+SEEN_TRADES = {t: set() for t in TICKERS}
+
+
+def ob_file(ticker):
+    return f"orderbook_{ticker}.csv"
+
+
+def tr_file(ticker):
+    return f"trades_{ticker}.csv"
+
+
+def _ensure_header(filename, headers):
+    if not os.path.exists(filename):
+        with open(filename, "w", newline="", encoding="utf-8") as f:
+            csv.writer(f).writerow(headers)
+
+
+def _price_to_float(p):
+    if p is None:
+        return None
+    return p.units + p.nano / 1e9
+
+
+def save_orderbook(ticker, ob, ts_iso):
+    row = [ts_iso, ticker, ob.figi]
+    for i in range(5):
+        if i < len(ob.bids):
+            b = ob.bids[i]
+            row.extend([_price_to_float(b.price), b.quantity])
+        else:
+            row.extend(["", ""])
+    for i in range(5):
+        if i < len(ob.asks):
+            a = ob.asks[i]
+            row.extend([_price_to_float(a.price), a.quantity])
+        else:
+            row.extend(["", ""])
+    with open(ob_file(ticker), "a", newline="", encoding="utf-8") as f:
+        csv.writer(f).writerow(row)
+
+
+def save_new_trades(ticker, trades_list):
+    new_count = 0
+    with open(tr_file(ticker), "a", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        for t in trades_list:
+            ts = t.time.isoformat() if t.time else datetime.now(timezone.utc).isoformat()
+            price = _price_to_float(t.price)
+            qty = t.quantity
+            direction = int(t.direction) if t.direction is not None else 0
+            key = (ts, price, qty, direction)
+            if key in SEEN_TRADES[ticker]:
+                continue
+            SEEN_TRADES[ticker].add(key)
+            w.writerow([ts, t.figi, price, qty, direction])
+            new_count += 1
+    return new_count
+
+KNOWN_FIGI = {
+    "SBER": "BBG004730N88",
+    "GAZP": "BBG004730RP0",
+    "RUAL": "BBG004S68B31",
+    "LKOH": "BBG004731032",
+    "VTBR": "BBG004730ZJ9",
+    "MTLR": "BBG004S68CG2",
+}
+
+
+def find_figi(client, ticker):
+    """Использует известные BBG-FIGI, чтобы избежать внутренних TCS-форматов."""
+    if ticker in KNOWN_FIGI:
+        return KNOWN_FIGI[ticker], ticker
+    # fallback — через API
+    try:
+        resp = client.instruments.find_instrument(query=ticker)
+        matches = [i for i in resp.instruments if i.ticker == ticker]
+        if not matches:
+            matches = resp.instruments
+        if not matches:
+            return None, None
+        return matches[0].figi, matches[0].name
+    except Exception as e:
+        print(f"Ошибка поиска {ticker}: {e}")
+        return None, None
+
+
+
+def main():
+    # Заголовки файлов
+    ob_headers = ["timestamp", "ticker", "figi"]
+    for i in range(1, 6):
+        ob_headers.extend([f"bid{i}_price", f"bid{i}_qty"])
+    for i in range(1, 6):
+        ob_headers.extend([f"ask{i}_price", f"ask{i}_qty"])
+
+    tr_headers = ["timestamp", "figi", "price", "quantity", "direction"]
+
+    for t in TICKERS:
+        _ensure_header(ob_file(t), ob_headers)
+        _ensure_header(tr_file(t), tr_headers)
+
+    print("Подключаемся к T-Invest API...")
+
+    with Client(TOKEN) as client:
+        # Находим FIGI для всех тикеров
+        instruments = {}
+        for t in TICKERS:
+            figi, name = find_figi(client, t)
+            if figi:
+                instruments[t] = figi
+                print(f"  {t}: {name}  FIGI={figi}")
+            else:
+                print(f"  {t}: НЕ НАЙДЕН — пропускаем")
+
+        if not instruments:
+            print("Ни одного инструмента не найдено")
+            return
+
+        print("\nCtrl+C для остановки.\n")
+
+        cycle = 0
+        totals = {t: 0 for t in instruments}
+
+        try:
+            while True:
+                cycle += 1
+                now = datetime.now(timezone.utc)
+                now_iso = now.isoformat()
+                status_parts = []
+
+                for ticker, figi in instruments.items():
+                    # Стакан
+                    try:
+                        ob_resp = client.market_data.get_order_book(figi=figi, depth=10)
+                        save_orderbook(ticker, ob_resp, now_iso)
+                    except Exception as e:
+                        status_parts.append(f"{ticker}:OB_err")
+
+                    # Сделки
+                    try:
+                        trades_resp = client.market_data.get_last_trades(
+                            figi=figi,
+                            from_=now - timedelta(seconds=TRADES_LOOKBACK_SEC),
+                            to=now,
+                        )
+                        new_t = save_new_trades(ticker, trades_resp.trades)
+                        totals[ticker] += new_t
+                    except Exception:
+                        new_t = 0
+
+                    status_parts.append(f"{ticker}+{new_t}")
+
+                print("[" + datetime.now().strftime('%H:%M:%S') + "] цикл",
+                      cycle, ":", " | ".join(status_parts),
+                      "| totals:", {t: totals[t] for t in instruments})
+
+                time.sleep(POLL_INTERVAL_SEC)
+
+        except KeyboardInterrupt:
+            print("\nОстановлено. Итого сделок:", totals)
+
+
+if __name__ == "__main__":
+    main()
