@@ -1,0 +1,31 @@
+TOKEN ="t.ftq9FmrqQbILuhhqvE0t4YBkCsWJjRpuFqXBVu3mqViwX89DezqliMHxjcgbzkgri4mbHK3A37xlWaqSHeIWSQ"
+
+
+Шаг 1. Завтра в 10:00 МСК — запустить сбор
+Поставьте будильник на 09:55 МСК. В 09:55 выполните:
+
+powershell
+cd C:\trading
+python orderflow_collector.py
+Дайте поработать 15–30 минут (в 10:00 откроется основная сессия — пойдут данные).
+
+Через 30 минут — Ctrl+C.
+
+Шаг 2. Проверить, что данные появились
+powershell
+Get-Content C:\trading\orderbook_raw.csv -Head 3
+Get-Content C:\trading\trades_raw.csv -Head 5
+Должны увидеть строки с числами:
+
+text
+2026-10-14T07:00:05+00:00,SBER,BBG004730N88,285.10,1500,285.09,2300,...,285.15,800,...
+2026-10-14T07:00:08+00:00,SBER,BBG004730N88,285.11,900,...
+Шаг 3. Прислать первые строки
+
+запуск обьединителя
+python merge_pipeline.py
+
+Проверка и запуск
+powershell
+python -m py_compile run_pipeline.py
+python run_pipeline.py

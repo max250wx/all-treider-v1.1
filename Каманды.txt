@@ -1,0 +1,42 @@
+1.проверка последних сообщений журнала, чтобы выяснить, продолжает ли DRY-RUN получать
+ ошибки сети или уже анализирует сигналы.
+Get-Content "C:\Users\Max\ai-trader\strategy_v2.4_test\dry_run_log.txt" -Tail 35
+Полезные однострочные команды (если не хочется ps1-файла)
+Проверить состояние DRY-RUN:
+
+powershell
+Get-Content dry_run_state.json
+Проверить сделки:
+
+powershell
+Get-Content dry_run_trades.csv
+Проверить лог:
+
+powershell
+Get-Content dry_run_log.txt -Tail 30
+Проверить задачу:
+
+powershell
+Get-ScheduledTask -TaskName "StrategyV250_DRY_RUN" | Select-Object TaskName, State
+Всё сразу:
+
+powershell
+Write-Host "=== STATE ===" -ForegroundColor Cyan; Get-Content dry_run_state.json; Write-Host "`n=== TRADES ===" -ForegroundColor Cyan; Get-Content dry_run_trades.csv; Write-Host "`n=== LOG ===" -ForegroundColor Cyan; Get-Content dry_run_log.txt -Tail 20
+
+Запустить:
+powershell
+python apply_sandbox_url.py
+
+Ежедневная проверка (30 секунд)
+powershell
+cd C:\Users\Max\ai-trader\strategy_v2.4_test
+Get-Content dry_run_log.txt -Tail 15
+Get-Content dry_run_trades.csv
+
+08.11.2026 — задача остановится, нужно будет продлить:
+
+powershell
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
+    -RepetitionInterval (New-TimeSpan -Hours 1) `
+    -RepetitionDuration (New-TimeSpan -Days 90)
+Set-ScheduledTask -TaskName "StrategyV250_DRY_RUN" -Trigger $trigger
