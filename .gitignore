@@ -1,0 +1,17 @@
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Local configuration and secrets
+config.py
+check_token.py
+*.bak
+*.zip
+accidental_git_output.txt
+pipeline_log.txt
