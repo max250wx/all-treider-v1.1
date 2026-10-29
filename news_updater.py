@@ -9,17 +9,16 @@
 """
 
 import os
-import time
 import subprocess
 import sys
+import time
 from datetime import datetime
-
 
 WORK_DIR = r"C:\trading"
 LOG_FILE = os.path.join(WORK_DIR, "news_updater.log")
 os.chdir(WORK_DIR)
 
-NEWS_INTERVAL_MIN = 5    # как часто обновлять (минут)
+NEWS_INTERVAL_MIN = 5  # как часто обновлять (минут)
 
 
 def log(msg):
