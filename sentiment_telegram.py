@@ -1,10 +1,13 @@
 """Сентимент для Telegram-новостей через RuBERT."""
+
 import os
+
 import pandas as pd
 from transformers import pipeline
 
 INPUT_FILE = "news_telegram.csv"
 OUTPUT_FILE = "news_telegram_sentiment.csv"
+
 
 def main():
     if not os.path.exists(INPUT_FILE):
@@ -14,7 +17,11 @@ def main():
     print("Загружено", len(df), "сообщений")
     df = df.drop_duplicates(subset=["text"]).reset_index(drop=True)
     print("После дедупликации:", len(df))
-    clf = pipeline("sentiment-analysis", model="seara/rubert-base-cased-russian-sentiment", tokenizer="seara/rubert-base-cased-russian-sentiment")
+    clf = pipeline(
+        "sentiment-analysis",
+        model="seara/rubert-base-cased-russian-sentiment",
+        tokenizer="seara/rubert-base-cased-russian-sentiment",
+    )
     results = []
     for text in df["text"].astype(str):
         try:
@@ -27,6 +34,7 @@ def main():
     df.to_csv(OUTPUT_FILE, index=False)
     print("Сохранено →", OUTPUT_FILE)
     print("Средний сентимент:", round(df["sentiment"].mean(), 3))
+
 
 if __name__ == "__main__":
     main()
