@@ -5,13 +5,15 @@ df.columns = [c.lower() for c in df.columns]
 df = df.rename(columns={"vol": "volume"})
 
 c = df["close"]
-tr = pd.concat([df["high"]-df["low"], (df["high"]-c.shift()).abs(), (df["low"]-c.shift()).abs()], axis=1).max(axis=1)
-atr = tr.ewm(alpha=1/14, adjust=False).mean()
+tr = pd.concat(
+    [df["high"] - df["low"], (df["high"] - c.shift()).abs(), (df["low"] - c.shift()).abs()], axis=1
+).max(axis=1)
+atr = tr.ewm(alpha=1 / 14, adjust=False).mean()
 pct = atr / c * 100
 
 print("Баров:", len(pct))
-print("ATR% min:    {:.4f}%".format(pct.min()))
-print("ATR% median: {:.4f}%".format(pct.median()))
-print("ATR% max:    {:.4f}%".format(pct.max()))
+print(f"ATR% min:    {pct.min():.4f}%")
+print(f"ATR% median: {pct.median():.4f}%")
+print(f"ATR% max:    {pct.max():.4f}%")
 print("Проходит ATR >= 0.5%:", (pct >= 0.5).sum(), "из", len(pct))
 print("Проходит ATR 0.5..6%:", ((pct >= 0.5) & (pct <= 6.0)).sum())
