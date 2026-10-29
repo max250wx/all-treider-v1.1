@@ -1,4 +1,5 @@
 """Тесты на ядро бэктестинга: комиссии, спреды, SL/TP, look-ahead."""
+
 import pandas as pd
 import pytest
 from backtesting import Backtest, Strategy
