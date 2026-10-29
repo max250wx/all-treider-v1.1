@@ -6,21 +6,53 @@ RuBERT даёт общую оценку, keyword-правила усиливаю
 import pandas as pd
 from transformers import pipeline
 
-
 # ─────────────────────────────────────────────
 # Ключевые слова для override
 # ─────────────────────────────────────────────
 
 STRONG_NEGATIVE = [
-    "санкц", "атак", "удар", "войн", "конфликт", "банкрот",
-    "иск о", "штраф", "запрет", "ограничен", "обвал", "кризис",
-    "катастроф", "убийств", "теракт", "разрушен", "потер", "угроз",
-    "обвинен", "провал", "шок", "сорвал", "претензии", "авари",
+    "санкц",
+    "атак",
+    "удар",
+    "войн",
+    "конфликт",
+    "банкрот",
+    "иск о",
+    "штраф",
+    "запрет",
+    "ограничен",
+    "обвал",
+    "кризис",
+    "катастроф",
+    "убийств",
+    "теракт",
+    "разрушен",
+    "потер",
+    "угроз",
+    "обвинен",
+    "провал",
+    "шок",
+    "сорвал",
+    "претензии",
+    "авари",
 ]
 STRONG_POSITIVE = [
-    "рекорд", "прибыл", "рост ", "вырос", "соглашен", "перемир",
-    "сотрудничеств", "подписа", "успех", "прорыв", "восстановлен",
-    "поддержк", "укреплен", "позитив", "договор", "мирн",
+    "рекорд",
+    "прибыл",
+    "рост ",
+    "вырос",
+    "соглашен",
+    "перемир",
+    "сотрудничеств",
+    "подписа",
+    "успех",
+    "прорыв",
+    "восстановлен",
+    "поддержк",
+    "укреплен",
+    "позитив",
+    "договор",
+    "мирн",
 ]
 
 
@@ -40,8 +72,12 @@ def keyword_override(text):
 def score_to_number(label, score):
     """Преобразует метку RuBERT в число от -1 до +1."""
     sign = {
-        "NEGATIVE": -1, "NEUTRAL": 0, "POSITIVE": 1,
-        "negative": -1, "neutral": 0, "positive": 1,
+        "NEGATIVE": -1,
+        "NEUTRAL": 0,
+        "POSITIVE": 1,
+        "negative": -1,
+        "neutral": 0,
+        "positive": 1,
     }
     return sign.get(label, 0) * score
 
@@ -56,7 +92,7 @@ if __name__ == "__main__":
         print("Загружено " + str(len(df)) + " новостей из news_rss.csv")
     except FileNotFoundError:
         print("Сначала запустите news_rss.py")
-        raise SystemExit
+        raise SystemExit from None
 
     print("Загружаем модель RuBERT...")
     clf = pipeline(
@@ -86,10 +122,10 @@ if __name__ == "__main__":
 
     print("")
     print("Готово. Статистика:")
-    print("  Средний сентимент: " + str(round(df['sentiment'].mean(), 3)))
-    print("  Позитивных:        " + str((df['sentiment'] > 0.1).sum()))
-    print("  Негативных:        " + str((df['sentiment'] < -0.1).sum()))
-    print("  Нейтральных:       " + str((df['sentiment'].abs() <= 0.1).sum()))
+    print("  Средний сентимент: " + str(round(df["sentiment"].mean(), 3)))
+    print("  Позитивных:        " + str((df["sentiment"] > 0.1).sum()))
+    print("  Негативных:        " + str((df["sentiment"] < -0.1).sum()))
+    print("  Нейтральных:       " + str((df["sentiment"].abs() <= 0.1).sum()))
     print("")
     print("── ТОП-10 негативных ──")
     print(df.nsmallest(10, "sentiment")[["timestamp", "title", "sentiment"]].to_string(index=False))
