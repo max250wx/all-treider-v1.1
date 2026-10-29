@@ -3,16 +3,14 @@
 Работает в фоне, проверяет RVI и новости каждые 2 минуты.
 """
 
-import os
-import time
-import csv
 import asyncio
-from datetime import datetime, timezone, timedelta
+import csv
+import os
+from datetime import UTC, datetime, timedelta
 
 from aiogram import Bot
-from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
-
+from aiogram.enums import ParseMode
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 if not BOT_TOKEN:
@@ -86,7 +84,7 @@ def get_new_important_news():
     except Exception:
         return []
 
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+    cutoff = datetime.now(UTC) - timedelta(minutes=30)
     result = []
 
     for r in rows:
@@ -110,12 +108,14 @@ def get_new_important_news():
         if key in sent_news:
             continue
 
-        result.append({
-            "key": key,
-            "title": title,
-            "sentiment": sent,
-            "timestamp": ts,
-        })
+        result.append(
+            {
+                "key": key,
+                "title": title,
+                "sentiment": sent,
+                "timestamp": ts,
+            }
+        )
 
     return result
 
@@ -141,7 +141,7 @@ async def main():
 
     try:
         while True:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
 
             # ── RVI-алерт ──
             rvi = get_rvi()
