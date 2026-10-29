@@ -1,11 +1,11 @@
 """DEBUG: печатает, что происходит в next() на каждом сигнале."""
 
 import warnings
-warnings.filterwarnings("ignore")
 
-import numpy as np
 import pandas as pd
 from backtesting import Backtest, Strategy
+
+warnings.filterwarnings("ignore")
 
 
 def load_combined(path="combined_data.csv"):
@@ -52,9 +52,11 @@ class DebugStrategy(Strategy):
             try:
                 book = self.book_ma[i] if i < len(self.book_ma) else None
                 trade = self.trade_ma[i] if i < len(self.trade_ma) else None
-                print(f"next: i={i} len(data)={len(self.data)} "
-                      f"book={book} trade={trade} "
-                      f"pos={bool(self.position)}")
+                print(
+                    f"next: i={i} len(data)={len(self.data)} "
+                    f"book={book} trade={trade} "
+                    f"pos={bool(self.position)}"
+                )
             except Exception as e:
                 print(f"next: i={i} ERROR {e}")
 
@@ -76,24 +78,35 @@ class DebugStrategy(Strategy):
 
         if book > self.book_threshold and trade > self.trade_threshold:
             print(f"  >>> BUY at i={i}: book={book:.4f} trade={trade:.4f} price={price:.2f}")
-            self.buy(size=self.size,
-                     sl=price * (1 - self.stop_pct),
-                     tp=price * (1 + self.tp_pct))
+            self.buy(
+                size=self.size,
+                sl=price * (1 - self.stop_pct),
+                tp=price * (1 + self.tp_pct),
+            )
             return
 
         if book < -self.book_threshold and trade < -self.trade_threshold:
             print(f"  >>> SELL at i={i}: book={book:.4f} trade={trade:.4f} price={price:.2f}")
-            self.sell(size=self.size,
-                      sl=price * (1 + self.stop_pct),
-                      tp=price * (1 - self.tp_pct))
+            self.sell(
+                size=self.size,
+                sl=price * (1 + self.stop_pct),
+                tp=price * (1 - self.tp_pct),
+            )
 
 
 if __name__ == "__main__":
     data = load_combined("combined_data.csv")
     print(f"Всего баров: {len(data)}")
-    bt = Backtest(data, DebugStrategy, cash=1_000_000,
-                  commission=0.0003, spread=0.0002, margin=0.2,
-                  exclusive_orders=True, trade_on_close=False)
+    bt = Backtest(
+        data,
+        DebugStrategy,
+        cash=1_000_000,
+        commission=0.0003,
+        spread=0.0002,
+        margin=0.2,
+        exclusive_orders=True,
+        trade_on_close=False,
+    )
     stats = bt.run()
     print()
     print("Сделок:", stats["# Trades"])
