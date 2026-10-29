@@ -8,12 +8,16 @@ from decimal import Decimal
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
 from aiogram.types import BotCommand, Message
+from dotenv import load_dotenv
 from t_tech.invest import Client
 from t_tech.invest.grpc.instruments import InstrumentType
 from t_tech.invest.schemas import GetMarketValuesRequest, MarketValueType
 
+load_dotenv()
+
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 T_INVEST_TOKEN = os.getenv("T_INVEST_TOKEN", "").strip()
+# ... дальше без изменений
 
 dp = Dispatcher()
 
