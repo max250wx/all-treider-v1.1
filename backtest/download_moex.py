@@ -1,8 +1,8 @@
 """Скачивает историю через MOEX ISS (M10, H1, D1) за год.
 M10 — ближайший к M5 доступный интервал.
 """
+
 import argparse
-import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -22,8 +22,8 @@ TICKERS = ["SBER", "GAZP", "LKOH", "VTBR", "ROSN"]
 # interval: 1=1min, 10=10min, 60=1h, 24=1d
 INTERVALS = {
     "M10": 10,
-    "H1":  60,
-    "D1":  24,
+    "H1": 60,
+    "D1": 24,
 }
 
 
@@ -48,7 +48,9 @@ def fetch_candles(ticker, board, interval, date_from, date_till, retries=3):
         for attempt in range(retries):
             try:
                 r = requests.get(
-                    url, params=params, timeout=30,
+                    url,
+                    params=params,
+                    timeout=30,
                     headers={"User-Agent": "Mozilla/5.0"},
                 )
                 r.raise_for_status()
@@ -56,7 +58,7 @@ def fetch_candles(ticker, board, interval, date_from, date_till, retries=3):
                 break
             except Exception as e:
                 if attempt < retries - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                 else:
                     print(f"    ошибка start={start}: {e}")
         if payload is None:
@@ -99,8 +101,7 @@ def main():
                 print(f"{tf}: неизвестный интервал, пропуск")
                 continue
             print(f"{ticker} {tf}:")
-            cols, rows = fetch_candles(ticker, "TQBR", INTERVALS[tf],
-                                        date_from, date_till)
+            cols, rows = fetch_candles(ticker, "TQBR", INTERVALS[tf], date_from, date_till)
             print(f"  получено: {len(rows)} свечей")
             if not rows or not cols:
                 continue
@@ -113,9 +114,11 @@ def main():
 
             out = HISTORY_DIR / f"{ticker}_{tf}.csv"
             df.to_csv(out)
-            print(f"  сохранено: {out.name} "
-                  f"({len(df)} строк, "
-                  f"{df.index[0]:%Y-%m-%d} — {df.index[-1]:%Y-%m-%d})\n")
+            print(
+                f"  сохранено: {out.name} "
+                f"({len(df)} строк, "
+                f"{df.index[0]:%Y-%m-%d} — {df.index[-1]:%Y-%m-%d})\n"
+            )
 
 
 if __name__ == "__main__":
