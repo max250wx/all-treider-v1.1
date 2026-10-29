@@ -1,0 +1,37 @@
+instrument: IMOEXF
+exchange: MOEX_FUT
+timeframe: M1
+data_path: data/history/imoexf_m1.csv
+commission: 0.000066
+spread: 0.00005
+margin: 0.1
+cash: 1000000
+
+strategies:
+  - name: "RSI 15/85 + session + volatility"
+    type: "rsi"
+    params: {rsi_period: 14, rsi_buy: 15, rsi_sell: 85}
+    filters:
+      - {type: "session", hours: [10, 18]}
+      - {type: "volatility", atr_period: 14, min_mult: 1.0}
+    exit: {stop_pct: 0.002, tp_pct: 0.010}
+    size: 10
+
+  - name: "RSI 15/85 + session + volatility (atr20)"
+    type: "rsi"
+    params: {rsi_period: 14, rsi_buy: 15, rsi_sell: 85}
+    filters:
+      - {type: "session", hours: [10, 18]}
+      - {type: "volatility", atr_period: 20, min_mult: 1.0}
+    exit: {stop_pct: 0.002, tp_pct: 0.010}
+    size: 10
+
+  - name: "RSI 15/85 + session + volatility + volume"
+    type: "rsi"
+    params: {rsi_period: 14, rsi_buy: 15, rsi_sell: 85}
+    filters:
+      - {type: "session", hours: [10, 18]}
+      - {type: "volatility", atr_period: 14, min_mult: 1.0}
+      - {type: "volume", vol_period: 20, min_ratio: 1.0}
+    exit: {stop_pct: 0.002, tp_pct: 0.010}
+    size: 10
