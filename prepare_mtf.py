@@ -5,24 +5,37 @@
 """
 
 import pandas as pd
-import numpy as np
 
 
 def prepare_mtf(in_csv, entry_tf, out_csv, label):
     print(f"\n=== {label}: {in_csv} ===")
     df = pd.read_csv(in_csv, parse_dates=True, index_col=0)
-    df = df.rename(columns={
-        "open": "Open", "high": "High", "low": "Low",
-        "close": "Close", "volume": "Volume",
-    })
+    df = df.rename(
+        columns={
+            "open": "Open",
+            "high": "High",
+            "low": "Low",
+            "close": "Close",
+            "volume": "Volume",
+        }
+    )
     df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
     df = df[df["Volume"] > 0].sort_index()
 
     # ── Entry TF ──
-    entry = df.resample(entry_tf).agg({
-        "Open": "first", "High": "max", "Low": "min",
-        "Close": "last", "Volume": "sum",
-    }).dropna()
+    entry = (
+        df.resample(entry_tf)
+        .agg(
+            {
+                "Open": "first",
+                "High": "max",
+                "Low": "min",
+                "Close": "last",
+                "Volume": "sum",
+            }
+        )
+        .dropna()
+    )
     entry = entry[entry["Volume"] > 0]
     print(f"  Entry TF ({entry_tf}): {len(entry)} баров")
 
@@ -63,9 +76,13 @@ def prepare_mtf(in_csv, entry_tf, out_csv, label):
     entry = entry.dropna()
 
     # Переименуем в капитализированные имена для backtesting.py
-    entry = entry.rename(columns={
-        "h1_trend": "H1Trend", "h4_trend": "H4Trend", "d1_trend": "D1Trend",
-    })
+    entry = entry.rename(
+        columns={
+            "h1_trend": "H1Trend",
+            "h4_trend": "H4Trend",
+            "d1_trend": "D1Trend",
+        }
+    )
 
     entry.to_csv(out_csv)
     print(f"  → Сохранено: {out_csv}")
@@ -77,5 +94,5 @@ def prepare_mtf(in_csv, entry_tf, out_csv, label):
 
 if __name__ == "__main__":
     prepare_mtf("ngu6_m1.csv", "15min", "ngu6_mtf.csv", "NGU6 газ")
-    prepare_mtf("ng_m1.csv",   "15min", "ngv6_mtf.csv", "NGV6 газ")
+    prepare_mtf("ng_m1.csv", "15min", "ngv6_mtf.csv", "NGV6 газ")
     prepare_mtf("sber_m1.csv", "15min", "sber_mtf.csv", "SBER акции")
