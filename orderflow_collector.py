@@ -3,11 +3,10 @@
 import csv
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from t_tech.invest import Client
 from t_tech.invest.schemas import OrderBookInstrument
-
 
 TOKEN = os.getenv("T_INVEST_TOKEN", "").strip()
 if not TOKEN:
@@ -15,7 +14,7 @@ if not TOKEN:
 INSTRUMENT_ID = "SBER"
 ORDERBOOK_DEPTH = 10
 ORDERBOOK_INTERVAL_SEC = 5
-HEARTBEAT_TIMEOUT = 60        # если нет событий 60 сек — переподключиться
+HEARTBEAT_TIMEOUT = 60  # если нет событий 60 сек — переподключиться
 
 ORDERBOOK_FILE = "orderbook_raw.csv"
 TRADES_FILE = "trades_raw.csv"
@@ -40,7 +39,7 @@ def _price_to_float(price):
 
 
 def save_orderbook(orderbook):
-    ts = datetime.now(timezone.utc).isoformat()
+    ts = datetime.now(UTC).isoformat()
     row = [ts, INSTRUMENT_ID, orderbook.figi]
 
     for i in range(5):
@@ -62,7 +61,7 @@ def save_orderbook(orderbook):
 
 
 def save_trade(trade):
-    ts = trade.date_time.isoformat() if trade.date_time else datetime.now(timezone.utc).isoformat()
+    ts = trade.date_time.isoformat() if trade.date_time else datetime.now(UTC).isoformat()
     row = [
         ts,
         getattr(trade, "figi", INSTRUMENT_ID),
@@ -84,26 +83,29 @@ def stream_once(client, figi):
 
     last_event = time.time()
     last_ob = 0
-    t_start = time.time()
 
     for md in stream:
         now_ts = time.time()
         last_event = now_ts
 
-        if md.orderbook is not None:
-            if now_ts - last_ob >= ORDERBOOK_INTERVAL_SEC:
-                save_orderbook(md.orderbook)
-                last_ob = now_ts
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] стакан сохранён")
+        if md.orderbook is not None and now_ts - last_ob >= ORDERBOOK_INTERVAL_SEC:
+            save_orderbook(md.orderbook)
+            last_ob = now_ts
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] стакан сохранён")
 
         if md.trade is not None:
             save_trade(md.trade)
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] "
-                  f"сделка {_price_to_float(md.trade.price)} x {md.trade.quantity}")
+            print(
+                f"[{datetime.now().strftime('%H:%M:%S')}] "
+                f"сделка {_price_to_float(md.trade.price)} x {md.trade.quantity}"
+            )
 
         # Heartbeat-контроль: если давно нет событий — выйти
         if now_ts - last_event > HEARTBEAT_TIMEOUT:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] нет событий {HEARTBEAT_TIMEOUT} сек — переподключение")
+            print(
+                f"[{datetime.now().strftime('%H:%M:%S')}] "
+                f"нет событий {HEARTBEAT_TIMEOUT} сек — переподключение"
+            )
             return False
 
     return False
