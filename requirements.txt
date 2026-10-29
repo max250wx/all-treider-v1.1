@@ -9,14 +9,9 @@ t-tech-investments
 # Local LLM
 ollama>=0.4
 
-# News sentiment
+# News sentiment (RuBERT) — тяжёлые, в CI не ставим
 transformers>=4.40
 torch>=2.0
-fasttext-wheel>=0.9.2
-dostoevsky==0.6.0
-razdel>=0.5.0
-pymorphy2>=0.9.1
-pymorphy2-dicts-ru
 
 # Backtesting
 backtesting>=0.6.6
@@ -26,3 +21,10 @@ aiogram>=3.10
 
 # DOCX
 python-docx>=1.1.0
+
+# Config
+python-dotenv>=1.0
+
+# Dev / CI
+ruff>=0.6
+pytest>=8.0

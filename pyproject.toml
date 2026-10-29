@@ -1,0 +1,46 @@
+[project]
+name = "all-treider"
+version = "0.1.0"
+description = "T-Invest research: backtesting, news sentiment, order flow, Telegram bot"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "requests>=2.31",
+    "t-tech-investments",
+    "ollama>=0.4",
+    "transformers>=4.40",
+    "torch>=2.0",
+    "backtesting>=0.6.6",
+    "aiogram>=3.10",
+    "python-docx>=1.1.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "mypy>=1.10",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = [".venv", "venv", "data", "*.bak"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+files = ["src"]

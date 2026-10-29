@@ -2,13 +2,12 @@ import asyncio
 import csv
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
 from aiogram.types import BotCommand, Message
-
 from t_tech.invest import Client
 from t_tech.invest.grpc.instruments import InstrumentType
 from t_tech.invest.schemas import GetMarketValuesRequest, MarketValueType
@@ -56,15 +55,13 @@ def get_fresh_news(n: int = 5) -> list[dict]:
 
     for row in rows:
         try:
-            row["_ts"] = datetime.fromisoformat(
-                row["timestamp"].replace("Z", "+00:00")
-            )
+            row["_ts"] = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
             if row["_ts"].tzinfo is None:
-                row["_ts"] = row["_ts"].replace(tzinfo=timezone.utc)
+                row["_ts"] = row["_ts"].replace(tzinfo=UTC)
         except (KeyError, ValueError, TypeError):
-            row["_ts"] = datetime.min.replace(tzinfo=timezone.utc)
+            row["_ts"] = datetime.min.replace(tzinfo=UTC)
 
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    cutoff = datetime.now(UTC) - timedelta(hours=24)
     rows = [row for row in rows if row["_ts"] >= cutoff]
     rows.sort(key=lambda row: row["_ts"], reverse=True)
     return rows[:n]
@@ -101,10 +98,7 @@ INSTRUMENT_TYPES = {
 
 
 def quotation_to_decimal(quotation) -> Decimal:
-    return (
-        Decimal(quotation.units)
-        + Decimal(quotation.nano) / Decimal(1_000_000_000)
-    )
+    return Decimal(quotation.units) + Decimal(quotation.nano) / Decimal(1_000_000_000)
 
 
 def lookup_price(ticker: str, kind: str = "share") -> str:
@@ -118,34 +112,29 @@ def lookup_price(ticker: str, kind: str = "share") -> str:
 
         if kind == "future":
             instruments = [
-                item for item in result.instruments
+                item
+                for item in result.instruments
                 if item.ticker.upper().startswith(ticker.upper())
             ]
             available = [
-                item for item in instruments
-                if getattr(item, "api_trade_available_flag", False)
+                item for item in instruments if getattr(item, "api_trade_available_flag", False)
             ]
             # У фьючерсов код обычно содержит букву месяца и год;
             # сортировка помогает предпочесть более поздний контракт.
             available.sort(key=lambda item: item.ticker, reverse=True)
         else:
             instruments = [
-                item for item in result.instruments
-                if item.ticker.upper() == ticker.upper()
+                item for item in result.instruments if item.ticker.upper() == ticker.upper()
             ]
             available = [
-                item for item in instruments
-                if getattr(item, "api_trade_available_flag", False)
+                item for item in instruments if getattr(item, "api_trade_available_flag", False)
             ]
 
         if not instruments:
             return f"Инструмент {ticker} не найден в категории {kind}."
 
         if not available:
-            return (
-                f"Для {ticker} не найден инструмент, доступный через API "
-                f"в категории {kind}."
-            )
+            return f"Для {ticker} не найден инструмент, доступный через API в категории {kind}."
 
         instrument = available[0]
 
@@ -160,10 +149,7 @@ def lookup_price(ticker: str, kind: str = "share") -> str:
         )
 
         if not response.instruments or not response.instruments[0].values:
-            return (
-                f"{instrument.name} ({instrument.ticker}): "
-                "цена через API сейчас недоступна."
-            )
+            return f"{instrument.name} ({instrument.ticker}): цена через API сейчас недоступна."
 
         values = response.instruments[0].values
         last_price = next(
@@ -178,7 +164,8 @@ def lookup_price(ticker: str, kind: str = "share") -> str:
 
         close_price = next(
             (
-                value for value in values
+                value
+                for value in values
                 if value.type == MarketValueType.INSTRUMENT_VALUE_CLOSE_PRICE
             ),
             None,
@@ -187,10 +174,7 @@ def lookup_price(ticker: str, kind: str = "share") -> str:
         selected = last_price or close_price
 
         if selected is None:
-            return (
-                f"{instrument.name} ({instrument.ticker}): "
-                "API не вернул ненулевую цену."
-            )
+            return f"{instrument.name} ({instrument.ticker}): API не вернул ненулевую цену."
 
         price = quotation_to_decimal(selected.value)
         price_time = selected.time
@@ -228,15 +212,12 @@ async def price_command(message: Message) -> None:
     kind = parts[2].lower() if len(parts) >= 3 else "share"
 
     if kind not in INSTRUMENT_TYPES:
-        await message.answer(
-            "Неизвестная категория. Доступны: share, future, etf, bond."
-        )
+        await message.answer("Неизвестная категория. Доступны: share, future, etf, bond.")
         return
 
     if not TELEGRAM_TOKEN or not T_INVEST_TOKEN:
         await message.answer(
-            "Не настроены переменные окружения TELEGRAM_BOT_TOKEN и/или "
-            "T_INVEST_TOKEN."
+            "Не настроены переменные окружения TELEGRAM_BOT_TOKEN и/или T_INVEST_TOKEN."
         )
         return
 
@@ -251,8 +232,7 @@ async def price_command(message: Message) -> None:
             file=sys.stderr,
         )
         await message.answer(
-            "Не удалось получить котировку. Проверь права T-Invest API "
-            "и журнал приложения."
+            "Не удалось получить котировку. Проверь права T-Invest API и журнал приложения."
         )
 
 
@@ -315,9 +295,7 @@ async def status_handler(message: Message) -> None:
     stats = get_data_stats()
     rvi = get_rvi()
 
-    rvi_text = (
-        f"{rvi['value']:.2f} ({rvi['change']:+.2f}%)" if rvi else "нет данных"
-    )
+    rvi_text = f"{rvi['value']:.2f} ({rvi['change']:+.2f}%)" if rvi else "нет данных"
 
     await message.answer(
         "📊 Статус системы\n\n"
