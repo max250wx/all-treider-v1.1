@@ -123,7 +123,7 @@ def main():
     except Exception as exc:
         log(f"ОШИБКА: {exc}")
         log("ПАЙПЛАЙН ЗАВЕРШИЛСЯ С ОШИБКОЙ")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
 
 def check_only():
