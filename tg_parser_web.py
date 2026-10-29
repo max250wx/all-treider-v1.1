@@ -1,11 +1,11 @@
 """Парсер Telegram-каналов через веб-превью t.me/s/<channel>."""
 
-import os
 import csv
+import os
 import time
+
 import requests
 from bs4 import BeautifulSoup
-
 
 CHANNELS = [
     "markettwits",
@@ -55,7 +55,7 @@ def parse_channel(channel, retries=3):
             break
         except Exception as e:
             if attempt < retries - 1:
-                print(f"  {channel}: попытка {attempt+1} — {e}, повтор...")
+                print(f"  {channel}: попытка {attempt + 1} — {e}, повтор...")
                 time.sleep(3)
             else:
                 print(f"  {channel}: ошибка после {retries} попыток — {e}")
@@ -85,12 +85,14 @@ def parse_channel(channel, retries=3):
         if any(w in lower for w in ["реклама", "erid", "купить рекламу"]):
             continue
 
-        posts.append({
-            "timestamp": ts_str,
-            "channel": channel,
-            "text": text[:500].replace("\n", " "),
-            "views": views,
-        })
+        posts.append(
+            {
+                "timestamp": ts_str,
+                "channel": channel,
+                "text": text[:500].replace("\n", " "),
+                "views": views,
+            }
+        )
 
     return posts
 
