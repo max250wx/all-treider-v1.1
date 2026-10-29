@@ -586,7 +586,8 @@ for _cat, _items in _EXTRA_TICKERS.items():
 
 # --- СТАТИКА (в самом конце) ---
 from fastapi.staticfiles import StaticFiles as _SF_FINAL
-app.mount("/", _SF_FINAL(directory=r"C:\\trader\\web\\frontend", html=True), name="static_root")
+FRONTEND_DIR_FINAL = Path(__file__).resolve().parent.parent / "frontend"
+app.mount("/", _SF_FINAL(directory=str(FRONTEND_DIR_FINAL), html=True), name="static_root")
 
 
 if __name__ == "__main__":
