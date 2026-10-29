@@ -1,4 +1,5 @@
 """Единая точка входа."""
+
 import argparse
 import subprocess
 import sys
@@ -36,22 +37,26 @@ def wait_all(procs):
 
 
 def cmd_collect():
-    wait_all([
-        start("orderflow", "collectors/orderflow.py"),
-        start("candles",   "collectors/candles.py"),
-        start("imoex",     "collectors/imoex.py"),
-        start("rvi",       "collectors/rvi.py"),
-    ])
+    wait_all(
+        [
+            start("orderflow", "collectors/orderflow.py"),
+            start("candles", "collectors/candles.py"),
+            start("imoex", "collectors/imoex.py"),
+            start("rvi", "collectors/rvi.py"),
+        ]
+    )
 
 
 def cmd_live():
-    wait_all([
-        start("orderflow", "collectors/orderflow.py"),
-        start("candles",   "collectors/candles.py"),
-        start("imoex",     "collectors/imoex.py"),
-        start("rvi",       "collectors/rvi.py"),
-        start("scalper",   "live/scalper.py"),
-    ])
+    wait_all(
+        [
+            start("orderflow", "collectors/orderflow.py"),
+            start("candles", "collectors/candles.py"),
+            start("imoex", "collectors/imoex.py"),
+            start("rvi", "collectors/rvi.py"),
+            start("scalper", "live/scalper.py"),
+        ]
+    )
 
 
 def cmd_web():
@@ -61,29 +66,30 @@ def cmd_web():
 
 
 def cmd_backtest():
-    for s in ("backtest/walkforward_portfolio_imoex.py",
-              "backtest/walkforward_rsi.py"):
+    for s in ("backtest/walkforward_portfolio_imoex.py", "backtest/walkforward_rsi.py"):
         if (ROOT / s).exists():
             subprocess.run([sys.executable, str(ROOT / s)], cwd=ROOT)
 
 
 def cmd_all():
-    wait_all([
-        start("orderflow", "collectors/orderflow.py"),
-        start("candles",   "collectors/candles.py"),
-        start("imoex",     "collectors/imoex.py"),
-        start("rvi",       "collectors/rvi.py"),
-        start("scalper",   "live/scalper.py"),
-        start("web",       "web/backend/main.py"),
-    ])
+    wait_all(
+        [
+            start("orderflow", "collectors/orderflow.py"),
+            start("candles", "collectors/candles.py"),
+            start("imoex", "collectors/imoex.py"),
+            start("rvi", "collectors/rvi.py"),
+            start("scalper", "live/scalper.py"),
+            start("web", "web/backend/main.py"),
+        ]
+    )
 
 
 COMMANDS = {
-    "collect":  cmd_collect,
-    "live":     cmd_live,
-    "web":      cmd_web,
+    "collect": cmd_collect,
+    "live": cmd_live,
+    "web": cmd_web,
     "backtest": cmd_backtest,
-    "all":      cmd_all,
+    "all": cmd_all,
 }
 
 if __name__ == "__main__":
