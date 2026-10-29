@@ -1,11 +1,12 @@
 """Стратегия на combined_data.csv: order flow + выход по времени."""
 
 import warnings
-warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
 from backtesting import Backtest, Strategy
+
+warnings.filterwarnings("ignore")
 
 
 def load_combined(path="combined_data.csv"):
@@ -25,9 +26,9 @@ def load_combined(path="combined_data.csv"):
 class OrderFlowStrategy(Strategy):
     book_threshold = 0.15
     trade_threshold = 0.15
-    stop_pct = 0.001           # 0.1% стоп
-    tp_pct = 0.002             # 0.2% тейк
-    max_hold_bars = 12         # выход по времени: 12 баров = 60 сек
+    stop_pct = 0.001  # 0.1% стоп
+    tp_pct = 0.002  # 0.2% тейк
+    max_hold_bars = 12  # выход по времени: 12 баров = 60 сек
     size = 100
     use_news = False
 
@@ -66,26 +67,43 @@ class OrderFlowStrategy(Strategy):
         news = self.news_arr[i]
         price = self.data.Close[-1]
 
-        if book > self.book_threshold and trade > self.trade_threshold:
-            if (not self.use_news) or news >= 0:
-                self.buy(size=self.size,
-                         sl=price * (1 - self.stop_pct),
-                         tp=price * (1 + self.tp_pct))
-                self.entry_bar = i
-                return
+        if (
+            book > self.book_threshold
+            and trade > self.trade_threshold
+            and ((not self.use_news) or news >= 0)
+        ):
+            self.buy(
+                size=self.size,
+                sl=price * (1 - self.stop_pct),
+                tp=price * (1 + self.tp_pct),
+            )
+            self.entry_bar = i
+            return
 
-        if book < -self.book_threshold and trade < -self.trade_threshold:
-            if (not self.use_news) or news <= 0:
-                self.sell(size=self.size,
-                          sl=price * (1 + self.stop_pct),
-                          tp=price * (1 - self.tp_pct))
-                self.entry_bar = i
+        if (
+            book < -self.book_threshold
+            and trade < -self.trade_threshold
+            and ((not self.use_news) or news <= 0)
+        ):
+            self.sell(
+                size=self.size,
+                sl=price * (1 + self.stop_pct),
+                tp=price * (1 - self.tp_pct),
+            )
+            self.entry_bar = i
 
 
 def run(data, use_news=False):
-    bt = Backtest(data, OrderFlowStrategy, cash=1_000_000,
-                  commission=0.0003, spread=0.0002, margin=0.2,
-                  exclusive_orders=True, trade_on_close=False)
+    bt = Backtest(
+        data,
+        OrderFlowStrategy,
+        cash=1_000_000,
+        commission=0.0003,
+        spread=0.0002,
+        margin=0.2,
+        exclusive_orders=True,
+        trade_on_close=False,
+    )
     return bt.run(use_news=use_news)
 
 
@@ -105,5 +123,9 @@ if __name__ == "__main__":
     print("─ Сделки ─")
     trades = s["_trades"]
     if len(trades) > 0:
-        cols = [c for c in ["Size", "EntryPrice", "ExitPrice", "PnL", "ReturnPct", "Duration"] if c in trades.columns]
+        cols = [
+            c
+            for c in ["Size", "EntryPrice", "ExitPrice", "PnL", "ReturnPct", "Duration"]
+            if c in trades.columns
+        ]
         print(trades[cols].to_string())
