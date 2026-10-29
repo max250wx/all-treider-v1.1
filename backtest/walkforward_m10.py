@@ -4,6 +4,7 @@ Partial TP 50% на 1R + стоп в БУ, остаток до 2R.
 Сессия 10:00-18:00 МСК.
 ATR-пороги подобраны под M10.
 """
+
 import argparse
 import sys
 from datetime import datetime
@@ -23,7 +24,7 @@ CAPITAL = 200_000
 RISK_PER_TRADE = 0.003
 DAILY_LOSS_LIMIT = 0.015
 MAX_EXPOSURE = 0.30
-SLIPPAGE_PCT = 0.0005   # 0.05% проскальзывание (акции TQBR)
+SLIPPAGE_PCT = 0.0005  # 0.05% проскальзывание (акции TQBR)
 
 # ATR-пороги под M10 (в 1.4x от M5)
 ATR_NORMAL_MAX = 0.45
@@ -52,8 +53,7 @@ def load_csv(name):
     df = df.rename(columns={"vol": "volume"})
     df = df[["open", "high", "low", "close", "volume"]].dropna()
     df = df[df["volume"] > 0].sort_index()
-    print(f"{name}: {len(df)} баров "
-          f"({df.index[0]:%Y-%m-%d} — {df.index[-1]:%Y-%m-%d})")
+    print(f"{name}: {len(df)} баров ({df.index[0]:%Y-%m-%d} — {df.index[-1]:%Y-%m-%d})")
     return df
 
 
@@ -63,11 +63,14 @@ def add_indicators(df):
     df["ema50"] = c.ewm(span=50, adjust=False).mean()
     df["ema200"] = c.ewm(span=200, adjust=False).mean()
 
-    tr = pd.concat([
-        df["high"] - df["low"],
-        (df["high"] - c.shift()).abs(),
-        (df["low"] - c.shift()).abs(),
-    ], axis=1).max(axis=1)
+    tr = pd.concat(
+        [
+            df["high"] - df["low"],
+            (df["high"] - c.shift()).abs(),
+            (df["low"] - c.shift()).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
     df["atr"] = tr.ewm(alpha=1 / 14, adjust=False).mean()
     df["atr_pct"] = df["atr"] / c * 100
     df["atr_median"] = df["atr_pct"].rolling(200).median()
@@ -109,10 +112,10 @@ def run_backtest(df):
             if pd.notna(row["atr_median"]) and row["atr_pct"] > HALT_MULT * row["atr_median"]:
                 px = row["close"]
                 if position["side"] == "LONG":
-                    px *= (1 - SLIPPAGE_PCT)
+                    px *= 1 - SLIPPAGE_PCT
                     exit_pnl = (px - position["entry"]) * position["qty"]
                 else:
-                    px *= (1 + SLIPPAGE_PCT)
+                    px *= 1 + SLIPPAGE_PCT
                     exit_pnl = (position["entry"] - px) * position["qty"]
                 reason = "halt_shock"
 
@@ -120,12 +123,12 @@ def run_backtest(df):
             if not reason:
                 if position["side"] == "LONG" and row["low"] <= position["stop"]:
                     fill = min(position["stop"], row["open"])
-                    fill *= (1 - SLIPPAGE_PCT)
+                    fill *= 1 - SLIPPAGE_PCT
                     exit_pnl = (fill - position["entry"]) * position["qty"]
                     reason = "stop_gap" if row["open"] < position["stop"] else "stop"
                 elif position["side"] == "SHORT" and row["high"] >= position["stop"]:
                     fill = max(position["stop"], row["open"])
-                    fill *= (1 + SLIPPAGE_PCT)
+                    fill *= 1 + SLIPPAGE_PCT
                     exit_pnl = (position["entry"] - fill) * position["qty"]
                     reason = "stop_gap" if row["open"] > position["stop"] else "stop"
 
@@ -186,34 +189,52 @@ def run_backtest(df):
                 obv_dn = row["obv"] < df["obv"].iloc[i - 5] if i >= 5 else False
 
                 # LONG
-                if (regime == "UPTREND" and row["close"] > prev["high"]
-                        and row["volume"] >= row["vol_sma"]
-                        and row["close"] > row["vwap"]
-                        and obv_up and row["atr_pct"] < ATR_NORMAL_MAX):
+                if (
+                    regime == "UPTREND"
+                    and row["close"] > prev["high"]
+                    and row["volume"] >= row["vol_sma"]
+                    and row["close"] > row["vwap"]
+                    and obv_up
+                    and row["atr_pct"] < ATR_NORMAL_MAX
+                ):
                     entry = row["close"]
                     stop = entry - 2.0 * row["atr"]
                     risk = entry - stop
                     if risk > 0:
-                        qty = min((CAPITAL * RISK_PER_TRADE) / risk,
-                                  CAPITAL * MAX_EXPOSURE / entry)
-                        position = {"side": "LONG", "entry": entry, "stop": stop,
-                                    "tp1": entry + risk, "tp2": entry + 2 * risk,
-                                    "qty": qty, "partial_done": False}
+                        qty = min((CAPITAL * RISK_PER_TRADE) / risk, CAPITAL * MAX_EXPOSURE / entry)
+                        position = {
+                            "side": "LONG",
+                            "entry": entry,
+                            "stop": stop,
+                            "tp1": entry + risk,
+                            "tp2": entry + 2 * risk,
+                            "qty": qty,
+                            "partial_done": False,
+                        }
 
                 # SHORT
-                elif (regime == "DOWNTREND" and row["close"] < prev["low"]
-                        and row["volume"] >= row["vol_sma"]
-                        and row["close"] < row["vwap"]
-                        and obv_dn and row["atr_pct"] < ATR_NORMAL_MAX):
+                elif (
+                    regime == "DOWNTREND"
+                    and row["close"] < prev["low"]
+                    and row["volume"] >= row["vol_sma"]
+                    and row["close"] < row["vwap"]
+                    and obv_dn
+                    and row["atr_pct"] < ATR_NORMAL_MAX
+                ):
                     entry = row["close"]
                     stop = entry + 2.0 * row["atr"]
                     risk = stop - entry
                     if risk > 0:
-                        qty = min((CAPITAL * RISK_PER_TRADE) / risk,
-                                  CAPITAL * MAX_EXPOSURE / entry)
-                        position = {"side": "SHORT", "entry": entry, "stop": stop,
-                                    "tp1": entry - risk, "tp2": entry - 2 * risk,
-                                    "qty": qty, "partial_done": False}
+                        qty = min((CAPITAL * RISK_PER_TRADE) / risk, CAPITAL * MAX_EXPOSURE / entry)
+                        position = {
+                            "side": "SHORT",
+                            "entry": entry,
+                            "stop": stop,
+                            "tp1": entry - risk,
+                            "tp2": entry - 2 * risk,
+                            "qty": qty,
+                            "partial_done": False,
+                        }
 
         if equity > peak:
             peak = equity
@@ -258,9 +279,11 @@ def walk_forward(df, n_windows=6):
         m["from"] = chunk.index[0].strftime("%Y-%m-%d")
         m["to"] = chunk.index[-1].strftime("%Y-%m-%d")
         rows.append(m)
-        print(f"  окно {k+1}: {m['from']}..{m['to']}  "
-              f"сделок {m['trades']:>3}  WR {m['winrate']:>5}%  "
-              f"PF {str(m['pf']):>5}  DD {m['dd']:>6}%  ret {m['return_pct']:+.2f}%")
+        print(
+            f"  окно {k + 1}: {m['from']}..{m['to']}  "
+            f"сделок {m['trades']:>3}  WR {m['winrate']:>5}%  "
+            f"PF {str(m['pf']):>5}  DD {m['dd']:>6}%  ret {m['return_pct']:+.2f}%"
+        )
     return pd.DataFrame(rows)
 
 
@@ -273,11 +296,14 @@ def main():
     df = load_csv(a.file)
     df = add_indicators(df)
     print(f"После индикаторов: {len(df)} баров")
-    print(f"ATR%: min={df['atr_pct'].min():.3f} "
-          f"median={df['atr_pct'].median():.3f} "
-          f"max={df['atr_pct'].max():.3f}")
-    print(f"Пороги: min={ATR_MIN} normal_max={ATR_NORMAL_MAX} "
-          f"panic={ATR_PANIC} halt={HALT_MULT}x\n")
+    print(
+        f"ATR%: min={df['atr_pct'].min():.3f} "
+        f"median={df['atr_pct'].median():.3f} "
+        f"max={df['atr_pct'].max():.3f}"
+    )
+    print(
+        f"Пороги: min={ATR_MIN} normal_max={ATR_NORMAL_MAX} panic={ATR_PANIC} halt={HALT_MULT}x\n"
+    )
 
     print(f"Walk-forward M10: {a.windows} окон")
     res = walk_forward(df, n_windows=a.windows)
