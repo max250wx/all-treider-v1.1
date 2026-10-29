@@ -1,122 +1,354 @@
-import yfinance as yf
-from datetime import datetime
-import pytz
-import time
-import requests
-from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextProcessor, CommandHandler, MessageHandler
+import asyncio
+import csv
+import os
+import sys
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
-# ==========================================================
-# НАСТРОЙКИ (Замените на свои данные)
-# ==========================================================
-BOT_TOKEN=8870582892:AAEWaxrTOKc9PhYJtWSGbirBzxNyt0SNWuM
-CHAT_ID=994444680
-TICKERS = [
-    "AAPL",        # Apple Inc.
-    "GOOGL",       # Alphabet Inc.
-    "BTC-USD",     # Bitcoin
-    "ETH-USD",     # Ethereum
-]
+from aiogram import Bot, Dispatcher
+from aiogram.filters import Command
+from aiogram.types import BotCommand, Message
 
-API_URL_STOCKS = "https://query1.finance.yahoo.com/v8/finance/chart" 
-API_URL_CRYPTO = "https://api.coingecko.com/api/v3/simple/price"
+from t_tech.invest import Client
+from t_tech.invest.grpc.instruments import InstrumentType
+from t_tech.invest.schemas import GetMarketValuesRequest, MarketValueType
 
-# ==========================================================
-# ЛОГИКА (Внутренняя часть, не трогай для начала)
-# ==========================================================
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+T_INVEST_TOKEN = os.getenv("T_INVEST_TOKEN", "").strip()
 
-def get_stock_price(ticker):
-    ticker_full = f"{ticker}.US" # Для акций нужен .US обычно
+dp = Dispatcher()
+
+
+def read_csv_tail(path: str, n: int = 5) -> list[dict]:
+    if not os.path.exists(path):
+        return []
     try:
-        stock = yf.Ticker(ticker_full)
-        hist = stock.history(period="1d")
-        if len(hist) > 0:
-            current_price = hist['Close'].iloc[-1]
-            return float(current_price), "stock"
-    except Exception as e:
-        print(f"Ошибка получения {ticker}: {e}")
-        return None, "error"
+        with open(path, encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
+        return rows[-n:]
+    except (OSError, csv.Error):
+        return []
 
-def get_crypto_price(ticker):
-    # CoinGecko иногда требует API key для частых запросов
-    try:
-        response = requests.get(API_URL_CRYPTO, params={"ids": ticker, "vs_currencies": ["USD"]})
-        data = response.json()
-        if ticker in data and "USD" in data[ticker]:
-            current_price = data[ticker]["USD"]
-            return float(current_price), "crypto"
-    except Exception as e:
-        print(f"Ошибка получения {ticker}: {e}")
-        return None, "error"
 
-def send_to_telegram(message):
+def get_rvi() -> dict | None:
+    rows = read_csv_tail("rvi_data.csv", 1)
+    if not rows:
+        return None
     try:
-        bot = ApplicationBuilder().token(BOT_TOKEN).build()
-        # Если нужно отправлять сразу без запуска сервера
-        import telegram.ext
-        from telegram.ext import ContextProcessor
-        
-        async def process(update: Update, context: ContextProcessor):
-            await update.message.reply_text(f"Данные за {message} загружены.")
-            
-    except Exception as e:
-        print(f"Ошибка Telegram отправки: {e}")
+        return {
+            "value": float(rows[0]["rvi_current"]),
+            "change": float(rows[0]["change_pct"]),
+        }
+    except (KeyError, ValueError, TypeError):
+        return None
 
-def send_market_update(bot, message):
-    """Функция для отправки сообщения в канал/чат"""
+
+def get_fresh_news(n: int = 5) -> list[dict]:
+    path = "news_sentiment.csv"
+    if not os.path.exists(path):
+        return []
+
     try:
-        await bot.send_message(
-            chat_id=TELEGRAM_USER_ID, 
-            text=message
+        with open(path, encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
+    except (OSError, csv.Error):
+        return []
+
+    for row in rows:
+        try:
+            row["_ts"] = datetime.fromisoformat(
+                row["timestamp"].replace("Z", "+00:00")
+            )
+            if row["_ts"].tzinfo is None:
+                row["_ts"] = row["_ts"].replace(tzinfo=timezone.utc)
+        except (KeyError, ValueError, TypeError):
+            row["_ts"] = datetime.min.replace(tzinfo=timezone.utc)
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    rows = [row for row in rows if row["_ts"] >= cutoff]
+    rows.sort(key=lambda row: row["_ts"], reverse=True)
+    return rows[:n]
+
+
+def get_data_stats() -> dict[str, int]:
+    files = {
+        "trades_GAZP": "trades_GAZP.csv",
+        "trades_RUAL": "trades_RUAL.csv",
+        "rvi": "rvi_data.csv",
+        "news": "news_sentiment.csv",
+    }
+    stats: dict[str, int] = {}
+
+    for name, path in files.items():
+        if not os.path.exists(path):
+            stats[name] = 0
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                stats[name] = max(0, sum(1 for _ in f) - 1)
+        except OSError:
+            stats[name] = 0
+
+    return stats
+
+
+INSTRUMENT_TYPES = {
+    "share": InstrumentType.INSTRUMENT_TYPE_SHARE,
+    "future": InstrumentType.INSTRUMENT_TYPE_FUTURES,
+    "etf": InstrumentType.INSTRUMENT_TYPE_ETF,
+    "bond": InstrumentType.INSTRUMENT_TYPE_BOND,
+}
+
+
+def quotation_to_decimal(quotation) -> Decimal:
+    return (
+        Decimal(quotation.units)
+        + Decimal(quotation.nano) / Decimal(1_000_000_000)
+    )
+
+
+def lookup_price(ticker: str, kind: str = "share") -> str:
+    instrument_kind = INSTRUMENT_TYPES[kind]
+
+    with Client(T_INVEST_TOKEN) as client:
+        result = client.instruments.find_instrument(
+            query=ticker,
+            instrument_kind=instrument_kind,
         )
-    except Exception as e:
-        print(f"Ошибка Telegram: {e}")
 
-def format_price(price_type, price, symbol):
-    return f"{price} USD" if price > 0 else "N/A"
+        if kind == "future":
+            instruments = [
+                item for item in result.instruments
+                if item.ticker.upper().startswith(ticker.upper())
+            ]
+            available = [
+                item for item in instruments
+                if getattr(item, "api_trade_available_flag", False)
+            ]
+            # У фьючерсов код обычно содержит букву месяца и год;
+            # сортировка помогает предпочесть более поздний контракт.
+            available.sort(key=lambda item: item.ticker, reverse=True)
+        else:
+            instruments = [
+                item for item in result.instruments
+                if item.ticker.upper() == ticker.upper()
+            ]
+            available = [
+                item for item in instruments
+                if getattr(item, "api_trade_available_flag", False)
+            ]
 
-async def start(update: Update, context: ContextProcessor):
-    await update.message.reply_text("Бот запущен. Выберите тикер для отслеживания (например: AAPL).")
+        if not instruments:
+            return f"Инструмент {ticker} не найден в категории {kind}."
 
-# ==========================================================
-# ОСНОВНОЙ ЦИКЛ (В реальном проекте это будет в loop)
-# ==========================================================
+        if not available:
+            return (
+                f"Для {ticker} не найден инструмент, доступный через API "
+                f"в категории {kind}."
+            )
 
-async def main_loop(bot):
-    while True:
-        now = datetime.now(pytz.UTC) # UTC для стабильности
-        for ticker in TICKERS:
-            price_info = None
-            
-            # Определяем тип тикера (упрощено, можно через список символов)
-            if "-" in ticker or "." in ticker:
-                # Крипта
-                price, type_ = await get_crypto_price(ticker)
-            else:
-                # Акция или монета
-                price, type_ = await get_stock_price(ticker)
+        instrument = available[0]
 
-            if price is not None:
-                formatted_msg = f"💰 **{ticker}:** {format_price(type_, price, ticker)}\n*Получено в реальном времени*\n"
-                
-                # Отправляем сообщение (в реальной версии здесь используется телеграм-бот API через async)
-                send_market_update(bot, formatted_msg)
-            else:
-                send_market_update(bot, f"⚠️ Не удалось получить данные для {ticker}.")
+        response = client.market_data.get_market_values(
+            request=GetMarketValuesRequest(
+                instrument_id=[instrument.uid],
+                values=[
+                    MarketValueType.INSTRUMENT_VALUE_LAST_PRICE,
+                    MarketValueType.INSTRUMENT_VALUE_CLOSE_PRICE,
+                ],
+            )
+        )
 
-        time.sleep(60) # Проверка каждые 60 секунд (можно уменьшить для более частых обновлений)
+        if not response.instruments or not response.instruments[0].values:
+            return (
+                f"{instrument.name} ({instrument.ticker}): "
+                "цена через API сейчас недоступна."
+            )
 
-def run_bot():
-    app = Application.builder().token(BOT_TOKEN).build()
-    print("Бот запущен...")
-    
-    # Обработка событий телеграма, если нужно взаимодействие с пользователями
-    # Для авто-запуска по таймеру можно использовать только основной цикл
-    
-    # Запуск основного цикла сбора данных
-    asyncio.create_task(main_loop(app))
-    
-    app.run_polling() # Устаревший метод для простоты
+        values = response.instruments[0].values
+        last_price = next(
+            (
+                value
+                for value in values
+                if value.type == MarketValueType.INSTRUMENT_VALUE_LAST_PRICE
+                and (value.value.units != 0 or value.value.nano != 0)
+            ),
+            None,
+        )
 
-if __name__ == '__main__':
-    run_bot()
+        close_price = next(
+            (
+                value for value in values
+                if value.type == MarketValueType.INSTRUMENT_VALUE_CLOSE_PRICE
+            ),
+            None,
+        )
+
+        selected = last_price or close_price
+
+        if selected is None:
+            return (
+                f"{instrument.name} ({instrument.ticker}): "
+                "API не вернул ненулевую цену."
+            )
+
+        price = quotation_to_decimal(selected.value)
+        price_time = selected.time
+
+        return (
+            f"📈 {instrument.name} ({instrument.ticker})\n"
+            f"Цена: {price} ₽\n"
+            f"Время котировки (UTC): {price_time}\n"
+            f"Категория: {kind}"
+        )
+
+
+@dp.message(Command("start"))
+async def start(message: Message) -> None:
+    await message.answer(
+        "Бот котировок MOEX работает.\n\n"
+        "Примеры запросов:\n"
+        "/price GAZP\n"
+        "/price Si future\n"
+        "/price SBMX etf\n"
+        "/price SU26238RMFS4 bond\n\n"
+        "Категории: share, future, etf, bond."
+    )
+
+
+@dp.message(Command("price"))
+async def price_command(message: Message) -> None:
+    parts = (message.text or "").split()
+
+    if len(parts) < 2:
+        await message.answer("Укажи тикер, например: /price GAZP")
+        return
+
+    ticker = parts[1].upper()
+    kind = parts[2].lower() if len(parts) >= 3 else "share"
+
+    if kind not in INSTRUMENT_TYPES:
+        await message.answer(
+            "Неизвестная категория. Доступны: share, future, etf, bond."
+        )
+        return
+
+    if not TELEGRAM_TOKEN or not T_INVEST_TOKEN:
+        await message.answer(
+            "Не настроены переменные окружения TELEGRAM_BOT_TOKEN и/или "
+            "T_INVEST_TOKEN."
+        )
+        return
+
+    await message.answer(f"Ищу котировку {ticker}…")
+
+    try:
+        result = await asyncio.to_thread(lookup_price, ticker, kind)
+        await message.answer(result)
+    except Exception as exc:
+        print(
+            f"Ошибка запроса котировки: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        await message.answer(
+            "Не удалось получить котировку. Проверь права T-Invest API "
+            "и журнал приложения."
+        )
+
+
+@dp.message(Command("news"))
+async def cmd_news(message: Message) -> None:
+    news = get_fresh_news(5)
+
+    if not news:
+        await message.answer("Новостей за последние 24 часа нет.")
+        return
+
+    lines = ["<b>Свежие новости:</b>"]
+
+    for i, item in enumerate(news, 1):
+        ts = item["_ts"].strftime("%H:%M UTC")
+        try:
+            sentiment = float(item.get("sentiment", 0))
+        except (ValueError, TypeError):
+            sentiment = 0
+
+        emoji = "🟢" if sentiment > 0.3 else ("🔴" if sentiment < -0.3 else "⚪")
+        title = item.get("title", "Без заголовка")
+        lines.append(f"{i}. {emoji} [{ts}] {title[:150]}")
+
+    await message.answer("\n\n".join(lines), parse_mode="HTML")
+
+
+@dp.message(Command("rvi"))
+async def cmd_rvi(message: Message) -> None:
+    r = get_rvi()
+
+    if not r:
+        await message.answer("Данные RVI не найдены.")
+        return
+
+    value = r["value"]
+    change = r["change"]
+
+    if value > 60:
+        zone = "🔴 ЭКСТРЕМАЛЬНАЯ ПАНИКА"
+    elif value > 40:
+        zone = "🟠 ПАНИКА"
+    elif value < 20:
+        zone = "🟢 СПОКОЙСТВИЕ"
+    else:
+        zone = "🟡 НЕЙТРАЛЬНО"
+
+    arrow = "↗" if change > 0 else ("↘" if change < 0 else "→")
+
+    await message.answer(
+        f"Индекс страха RVI\n\n"
+        f"Значение: {value:.2f}\n"
+        f"Изменение: {arrow} {change:+.2f}%\n"
+        f"Зона: {zone}"
+    )
+
+
+@dp.message(Command("status"))
+async def status_handler(message: Message) -> None:
+    stats = get_data_stats()
+    rvi = get_rvi()
+
+    rvi_text = (
+        f"{rvi['value']:.2f} ({rvi['change']:+.2f}%)" if rvi else "нет данных"
+    )
+
+    await message.answer(
+        "📊 Статус системы\n\n"
+        f"GAZP: {stats['trades_GAZP']} строк\n"
+        f"RUAL: {stats['trades_RUAL']} строк\n"
+        f"RVI: {stats['rvi']} строк — {rvi_text}\n"
+        f"Новости: {stats['news']} строк"
+    )
+
+
+async def main() -> None:
+    if not TELEGRAM_TOKEN:
+        raise RuntimeError("Не задана переменная окружения TELEGRAM_BOT_TOKEN")
+    if not T_INVEST_TOKEN:
+        raise RuntimeError("Не задана переменная окружения T_INVEST_TOKEN")
+
+    bot = Bot(token=TELEGRAM_TOKEN)
+    try:
+        await bot.set_my_commands(
+            [
+                BotCommand(command="start", description="Запустить бота"),
+                BotCommand(command="price", description="Цена инструмента MOEX"),
+                BotCommand(command="news", description="Свежие новости"),
+                BotCommand(command="rvi", description="Индекс страха RVI"),
+                BotCommand(command="status", description="Статус данных"),
+            ]
+        )
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

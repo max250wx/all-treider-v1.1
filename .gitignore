@@ -1,17 +1,46 @@
-
-# Python cache
+# --- Python ---
 __pycache__/
 *.py[cod]
+*$py.class
+.Python
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
-# Environment secrets
+# --- Secrets ---
 .env
 .env.*
 !.env.example
-
-# Local configuration and secrets
-config.py
 check_token.py
+
+# --- Backups / artifacts ---
 *.bak
 *.zip
 accidental_git_output.txt
+GAZP
 pipeline_log.txt
+notify_state.csv
+
+# --- Data (артефакты) ---
+data/
+*.csv
+*.docx
+
+# --- Logs ---
+*.log
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+.DS_Store
+
+# --- Local AI ---
+ollama_models/
