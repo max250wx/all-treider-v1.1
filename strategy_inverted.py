@@ -1,11 +1,11 @@
 """Тест ИНВЕРТИРОВАННОЙ логики: продажи → LONG, покупки → SHORT."""
 
 import warnings
-warnings.filterwarnings("ignore")
 
-import numpy as np
 import pandas as pd
 from backtesting import Backtest, Strategy
+
+warnings.filterwarnings("ignore")
 
 
 def load_combined(path="combined_data.csv"):
@@ -57,30 +57,45 @@ class InvertedFlow(Strategy):
 
         # ИНВЕРСИЯ: сигнал SHORT → открываем LONG
         if book < -self.book_threshold and trade < -self.trade_threshold:
-            self.buy(size=self.size,
-                     sl=price * (1 - self.stop_pct),
-                     tp=price * (1 + self.tp_pct))
+            self.buy(
+                size=self.size,
+                sl=price * (1 - self.stop_pct),
+                tp=price * (1 + self.tp_pct),
+            )
             self.entry_bar = i
             return
 
         if book > self.book_threshold and trade > self.trade_threshold:
-            self.sell(size=self.size,
-                      sl=price * (1 + self.stop_pct),
-                      tp=price * (1 - self.tp_pct))
+            self.sell(
+                size=self.size,
+                sl=price * (1 + self.stop_pct),
+                tp=price * (1 - self.tp_pct),
+            )
             self.entry_bar = i
 
 
 if __name__ == "__main__":
     data = load_combined()
     print(f"Баров: {len(data)}\n")
-    bt = Backtest(data, InvertedFlow, cash=1_000_000,
-                  commission=0.0003, spread=0.0002, margin=0.2,
-                  exclusive_orders=True, trade_on_close=False)
+    bt = Backtest(
+        data,
+        InvertedFlow,
+        cash=1_000_000,
+        commission=0.0003,
+        spread=0.0002,
+        margin=0.2,
+        exclusive_orders=True,
+        trade_on_close=False,
+    )
     s = bt.run()
     print(s)
     print()
     print("─ Сделки ─")
     trades = s["_trades"]
     if len(trades) > 0:
-        cols = [c for c in ["Size", "EntryPrice", "ExitPrice", "PnL", "ReturnPct"] if c in trades.columns]
+        cols = [
+            c
+            for c in ["Size", "EntryPrice", "ExitPrice", "PnL", "ReturnPct"]
+            if c in trades.columns
+        ]
         print(trades[cols].to_string())
