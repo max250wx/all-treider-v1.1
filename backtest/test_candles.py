@@ -1,10 +1,11 @@
 """Диагностика get_candles: выбираем TQBR-инструмент."""
+
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
-from t_tech.invest import Client, CandleInterval
+from t_tech.invest import CandleInterval, Client
 
 load_dotenv(Path(r"C:\trader\.env"), override=True)
 TOKEN = os.environ["T_INVEST_TOKEN"]
@@ -14,36 +15,39 @@ with Client(TOKEN) as c:
     print("=== find_instrument SBER ===")
     r = c.instruments.find_instrument(query="SBER")
     for inst in r.instruments:
-        print(f"  {inst.ticker} / {inst.class_code} / api_ok={inst.api_trade_available_flag} / uid={inst.uid[:12]}...")
+        print(
+            f"  {inst.ticker} / {inst.class_code} / api_ok={inst.api_trade_available_flag} / uid={inst.uid[:12]}..."
+        )
 
     # Выбираем TQBR
     sber = [
-        i for i in r.instruments
-        if i.ticker == "SBER"
-        and i.class_code == "TQBR"
-        and i.api_trade_available_flag
+        i
+        for i in r.instruments
+        if i.ticker == "SBER" and i.class_code == "TQBR" and i.api_trade_available_flag
     ]
     if not sber:
         print("SBER TQBR не найден")
         exit()
     inst = sber[0]
-    print(f"\nВыбран: uid={inst.uid}, class_code={inst.class_code}, api_ok={inst.api_trade_available_flag}")
+    print(
+        f"\nВыбран: uid={inst.uid}, class_code={inst.class_code}, api_ok={inst.api_trade_available_flag}"
+    )
 
     uid = inst.uid
 
     print("\n=== get_candles тесты ===")
     intervals = {
-        "M1":  CandleInterval.CANDLE_INTERVAL_1_MIN,
-        "M5":  CandleInterval.CANDLE_INTERVAL_5_MIN,
+        "M1": CandleInterval.CANDLE_INTERVAL_1_MIN,
+        "M5": CandleInterval.CANDLE_INTERVAL_5_MIN,
         "M15": CandleInterval.CANDLE_INTERVAL_15_MIN,
-        "H1":  CandleInterval.CANDLE_INTERVAL_HOUR,
-        "D1":  CandleInterval.CANDLE_INTERVAL_DAY,
+        "H1": CandleInterval.CANDLE_INTERVAL_HOUR,
+        "D1": CandleInterval.CANDLE_INTERVAL_DAY,
     }
     days_options = [1, 7, 30, 365]
 
     for name, interval in intervals.items():
         for days in days_options:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             try:
                 resp = c.market_data.get_candles(
                     instrument_id=uid,
