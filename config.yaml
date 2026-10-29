@@ -1,0 +1,47 @@
+paths:
+  data_live:    data/live
+  data_history: data/history
+  results:      results
+  logs:         logs
+
+collectors:
+  tickers: [LKOH, VTBR, ROSN]
+  poll_interval_sec: 5
+  trades_lookback_sec: 60
+  rvi_poll_sec: 60
+  news_update_min: 60
+  candles_interval_min: 10
+
+watchdog:
+  check_interval_sec: 30
+  stall_minutes: 5
+  restart_limit: 5
+  restart_window_sec: 600
+
+live:
+  mode: dry_run
+  cooldown_sec: 120
+  deposit: 200000
+
+rsi_strategy:
+  rsi_period: 9
+  rsi_lo: 40
+  rsi_hi: 60
+  rsi_exit: 50
+  ema_trend: 200
+  atr_stop_mult: 2.0
+  tp_r_mult: 2.0
+  session_start_utc: 7
+  session_end_utc: 15
+  session_close_utc: 15
+  imoex_filter: true
+  risk_per_trade: 0.003
+  max_exposure: 0.30
+  daily_loss_limit: 0.015
+
+web:
+  host: 0.0.0.0
+  port: 8000
+
+telegram:
+  enabled: false

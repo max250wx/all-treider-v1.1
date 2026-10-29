@@ -1,0 +1,22 @@
+# TODO — состояние на 16.10.2026
+
+## Работает
+- collectors/orderflow.py  → data/live/orderbook_*.csv, trades_*.csv (T-Invest)
+- collectors/rvi.py        → data/live/rvi_data.csv (MOEX ISS, retry)
+- collectors/news.py       → data/live/news_sentiment.csv (RSS + RuBERT)
+- collectors/watchdog.py   → следит за orderflow + rvi
+- live/scalper.py          → signals.csv, dry-run
+- web/backend/main.py      → читает локальные CSV, отдаёт /api/*
+- web/frontend             → открывается на localhost:8000
+
+## Осталось
+- [ ] F: /api/scan всё ещё 404 (не критично)
+- [ ] F: стакан показывает устаревшие данные, если orderflow остановлен
+- [ ] B: Telegram — нужен TG_BOT_TOKEN и TG_CHAT_ID в .env
+- [ ] C: walk-forward на imoexf_m1.csv (обучение → тест, PF, DD)
+
+## Как запустить заново
+cd C:\trader
+python run.py all          # всё сразу
+python run.py web          # только веб
+python run.py live         # только сбор + сигналы
