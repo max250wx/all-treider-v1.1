@@ -1,12 +1,12 @@
 """Watchdog v3: следит за сборщиками. Перезапускает при падении или
 отсутствии активности файлов. Не блокирует цикл scheduled.
 """
+
 import os
 import subprocess
 import sys
-import threading
 import time
-from datetime import datetime, time as dtime
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -30,8 +30,7 @@ TARGETS = [
     {
         "name": "orderflow",
         "script": "collectors/orderflow.py",
-        "files": [DATA_DIR / f"orderbook_{t}.csv"
-                  for t in CFG["collectors"]["tickers"]],
+        "files": [DATA_DIR / f"orderbook_{t}.csv" for t in CFG["collectors"]["tickers"]],
     },
     {
         "name": "rvi",
@@ -61,9 +60,9 @@ def launch(script):
         return subprocess.Popen(
             [sys.executable, str(ROOT / script)],
             cwd=ROOT,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP
-                           if os.name == "nt" else 0),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
         )
     except Exception as e:
         log(f"  ОШИБКА запуска {script}: {e}")
@@ -75,8 +74,11 @@ def kill(proc):
         return
     try:
         if os.name == "nt":
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         else:
             proc.terminate()
         proc.wait(timeout=5)
@@ -119,11 +121,12 @@ def main():
                     reason = f"нет данных {stall_min:.1f} мин"
 
                 if reason:
-                    restarts[name] = [ts for ts in restarts[name]
-                                      if now - ts < RESTART_WINDOW]
+                    restarts[name] = [ts for ts in restarts[name] if now - ts < RESTART_WINDOW]
                     if len(restarts[name]) >= RESTART_LIMIT:
-                        log(f"[!!] {name}: {RESTART_LIMIT} рестартов за "
-                            f"{RESTART_WINDOW//60} мин — пауза")
+                        log(
+                            f"[!!] {name}: {RESTART_LIMIT} рестартов за "
+                            f"{RESTART_WINDOW // 60} мин — пауза"
+                        )
                         last_seen[name] = now
                         continue
                     log(f"[!] {name}: {reason} — перезапуск")
