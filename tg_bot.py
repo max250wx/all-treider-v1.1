@@ -1,13 +1,13 @@
 import asyncio
-import os
 import csv
-from datetime import datetime, timezone, timedelta
+import os
+from datetime import UTC, datetime, timedelta
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.types import Message
-from aiogram.enums import ParseMode
-from aiogram.client.default import DefaultBotProperties
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 if not BOT_TOKEN:
@@ -50,15 +50,20 @@ def get_fresh_news(n=5):
         try:
             r["_ts"] = datetime.fromisoformat(r["timestamp"].replace("Z", "+00:00"))
         except Exception:
-            r["_ts"] = datetime.min.replace(tzinfo=timezone.utc)
+            r["_ts"] = datetime.min.replace(tzinfo=UTC)
     rows.sort(key=lambda r: r["_ts"], reverse=True)
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    cutoff = datetime.now(UTC) - timedelta(hours=24)
     rows = [r for r in rows if r["_ts"] >= cutoff]
     return rows[:n]
 
 
 def get_data_stats():
-    files = {"trades_GAZP": "trades_GAZP.csv", "trades_RUAL": "trades_RUAL.csv", "rvi": "rvi_data.csv", "news": "news_sentiment.csv"}
+    files = {
+        "trades_GAZP": "trades_GAZP.csv",
+        "trades_RUAL": "trades_RUAL.csv",
+        "rvi": "rvi_data.csv",
+        "news": "news_sentiment.csv",
+    }
     stats = {}
     for name, path in files.items():
         if not os.path.exists(path):
@@ -74,14 +79,16 @@ def get_data_stats():
 
 @dp.message(Command("start"))
 async def cmd_start(msg: Message):
-    text = ("<b>AI-трейдер MOEX</b>\n\n"
-            "Команды:\n"
-            "/news - 5 свежих новостей\n"
-            "/rvi - индекс страха\n"
-            "/signal GAZP - сводка по тикеру\n"
-            "/status - состояние системы\n"
-            "/analyze текст - анализ новости AI\n\n"
-            "Ваш Chat ID: <code>" + str(msg.chat.id) + "</code>")
+    text = (
+        "<b>AI-трейдер MOEX</b>\n\n"
+        "Команды:\n"
+        "/news - 5 свежих новостей\n"
+        "/rvi - индекс страха\n"
+        "/signal GAZP - сводка по тикеру\n"
+        "/status - состояние системы\n"
+        "/analyze текст - анализ новости AI\n\n"
+        "Ваш Chat ID: <code>" + str(msg.chat.id) + "</code>"
+    )
     await msg.answer(text)
 
 
@@ -109,13 +116,25 @@ async def cmd_rvi(msg: Message):
     if not r:
         await msg.answer("RVI не найден")
         return
-    v = r["value"]; ch = r["change"]
-    if v > 60: zone = "🔴 ЭКСТРЕМАЛЬНАЯ ПАНИКА"
-    elif v > 40: zone = "🟠 ПАНИКА"
-    elif v < 20: zone = "🟢 СПОКОЙСТВИЕ"
-    else: zone = "🟡 НЕЙТРАЛЬНО"
+    v = r["value"]
+    ch = r["change"]
+    if v > 60:
+        zone = "🔴 ЭКСТРЕМАЛЬНАЯ ПАНИКА"
+    elif v > 40:
+        zone = "🟠 ПАНИКА"
+    elif v < 20:
+        zone = "🟢 СПОКОЙСТВИЕ"
+    else:
+        zone = "🟡 НЕЙТРАЛЬНО"
     arrow = "↗" if ch > 0 else ("↘" if ch < 0 else "→")
-    await msg.answer("<b>Индекс страха RVI</b>\n\nЗначение: <b>" + f"{v:.2f}" + "</b>\nИзменение: " + arrow + f" {ch:+.2f}%\nЗона: " + zone)
+    await msg.answer(
+        "<b>Индекс страха RVI</b>\n\nЗначение: <b>"
+        + f"{v:.2f}"
+        + "</b>\nИзменение: "
+        + arrow
+        + f" {ch:+.2f}%\nЗона: "
+        + zone
+    )
 
 
 @dp.message(Command("signal"))
@@ -144,7 +163,8 @@ async def cmd_status(msg: Message):
     stats = get_data_stats()
     r = get_rvi()
     text = "<b>Состояние системы</b>\n\n"
-    if r: text += "RVI: " + f"{r['value']:.2f}" + "\n\n"
+    if r:
+        text += "RVI: " + f"{r['value']:.2f}" + "\n\n"
     text += "<b>Данные:</b>\n"
     text += "Сделок GAZP: " + f"{stats.get('trades_GAZP', 0):,}" + "\n"
     text += "Сделок RUAL: " + f"{stats.get('trades_RUAL', 0):,}" + "\n"
@@ -162,14 +182,26 @@ async def cmd_analyze(msg: Message):
     await msg.answer("Анализирую...")
     try:
         import ollama
-        prompt = ("Ты аналитик российского фондового рынка. "
-                  "Ответь одной строкой: ТОНАЛЬНОСТЬ, ТЕМА, ВАЖНОСТЬ. "
-                  "ТОНАЛЬНОСТЬ: POSITIVE или NEGATIVE или NEUTRAL. "
-                  "ТЕМА: GEO или CB или OIL или CORP или OTHER. "
-                  "ВАЖНОСТЬ: 1 до 5.")
-        resp = ollama.chat(model="qwen2.5:7b", messages=[{"role": "system", "content": prompt}, {"role": "user", "content": "Новость: " + args}], options={"temperature": 0.0, "num_predict": 30})
+
+        prompt = (
+            "Ты аналитик российского фондового рынка. "
+            "Ответь одной строкой: ТОНАЛЬНОСТЬ, ТЕМА, ВАЖНОСТЬ. "
+            "ТОНАЛЬНОСТЬ: POSITIVE или NEGATIVE или NEUTRAL. "
+            "ТЕМА: GEO или CB или OIL или CORP или OTHER. "
+            "ВАЖНОСТЬ: 1 до 5."
+        )
+        resp = ollama.chat(
+            model="qwen2.5:7b",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": "Новость: " + args},
+            ],
+            options={"temperature": 0.0, "num_predict": 30},
+        )
         ans = resp["message"]["content"].strip().upper()
-        await msg.answer("<b>Анализ:</b>\n\n<code>" + ans + "</code>\n\n<i>" + args[:200] + "</i>")
+        await msg.answer(
+            "<b>Анализ:</b>\n\n<code>" + ans + "</code>\n\n<i>" + args[:200] + "</i>"
+        )
     except Exception as e:
         await msg.answer("Ошибка AI: " + str(e))
 
