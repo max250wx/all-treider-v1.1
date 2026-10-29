@@ -1,17 +1,17 @@
 """Скачивает исторические свечи через T-Invest API.
 UID получаем через find_instrument (get_instrument_by не работает с figi в этой версии SDK).
 """
+
 import argparse
 import os
-import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
-from t_tech.invest import Client, CandleInterval
+from t_tech.invest import CandleInterval, Client
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env", override=True)
@@ -34,10 +34,10 @@ TICKERS = {
 }
 
 INTERVALS = {
-    "M1":  CandleInterval.CANDLE_INTERVAL_1_MIN,
-    "M5":  CandleInterval.CANDLE_INTERVAL_5_MIN,
+    "M1": CandleInterval.CANDLE_INTERVAL_1_MIN,
+    "M5": CandleInterval.CANDLE_INTERVAL_5_MIN,
     "M15": CandleInterval.CANDLE_INTERVAL_15_MIN,
-    "H1":  CandleInterval.CANDLE_INTERVAL_HOUR,
+    "H1": CandleInterval.CANDLE_INTERVAL_HOUR,
 }
 
 
@@ -47,16 +47,14 @@ def get_uid(client, ticker, class_code="TQBR"):
         r = client.instruments.find_instrument(query=ticker)
         # фильтр: ticker совпадает, class_code = TQBR, api_trade_available_flag = True
         matches = [
-            i for i in r.instruments
-            if i.ticker == ticker
-            and i.class_code == class_code
-            and i.api_trade_available_flag
+            i
+            for i in r.instruments
+            if i.ticker == ticker and i.class_code == class_code and i.api_trade_available_flag
         ]
         if not matches:
             # fallback: любой с api_trade_available_flag=True
             matches = [
-                i for i in r.instruments
-                if i.ticker == ticker and i.api_trade_available_flag
+                i for i in r.instruments if i.ticker == ticker and i.api_trade_available_flag
             ]
         if not matches:
             return None, None
@@ -68,7 +66,7 @@ def get_uid(client, ticker, class_code="TQBR"):
 
 
 def get_candles(client, uid, interval, days_back=365):
-    end = datetime.now(timezone.utc)
+    end = datetime.now(UTC)
     start = end - timedelta(days=days_back)
     all_candles = []
     cursor = start
@@ -97,14 +95,16 @@ def get_candles(client, uid, interval, days_back=365):
 def to_df(candles):
     rows = []
     for c in candles:
-        rows.append({
-            "timestamp": c.time,
-            "open": c.open.units + c.open.nano / 1e9,
-            "high": c.high.units + c.high.nano / 1e9,
-            "low": c.low.units + c.low.nano / 1e9,
-            "close": c.close.units + c.close.nano / 1e9,
-            "volume": c.volume,
-        })
+        rows.append(
+            {
+                "timestamp": c.time,
+                "open": c.open.units + c.open.nano / 1e9,
+                "high": c.high.units + c.high.nano / 1e9,
+                "low": c.low.units + c.low.nano / 1e9,
+                "close": c.close.units + c.close.nano / 1e9,
+                "volume": c.volume,
+            }
+        )
     df = pd.DataFrame(rows)
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     return df.set_index("timestamp").sort_index()
@@ -142,9 +142,11 @@ def main():
                 df = to_df(candles)
                 out = HISTORY_DIR / f"{ticker}_{tf}.csv"
                 df.to_csv(out)
-                print(f"    сохранено: {out.name} "
-                      f"({len(df)} строк, "
-                      f"{df.index[0]:%Y-%m-%d} — {df.index[-1]:%Y-%m-%d})")
+                print(
+                    f"    сохранено: {out.name} "
+                    f"({len(df)} строк, "
+                    f"{df.index[0]:%Y-%m-%d} — {df.index[-1]:%Y-%m-%d})"
+                )
 
 
 if __name__ == "__main__":
