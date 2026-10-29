@@ -1,6 +1,7 @@
 """IMOEX M10 через MOEX ISS (T-Invest не отдаёт индексы).
 Пишет data/live/candles_IMOEX.csv каждые 10 минут.
 """
+
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -23,12 +24,19 @@ def fetch(days=7):
     all_rows, cols = [], None
     start = 0
     while True:
-        params = {"interval": 10, "from": (now-timedelta(days=days)).strftime("%Y-%m-%d"),
-                  "till": now.strftime("%Y-%m-%d"), "start": start, "iss.meta": "off"}
+        params = {
+            "interval": 10,
+            "from": (now - timedelta(days=days)).strftime("%Y-%m-%d"),
+            "till": now.strftime("%Y-%m-%d"),
+            "start": start,
+            "iss.meta": "off",
+        }
         payload = None
         for attempt in range(3):
             try:
-                r = requests.get(url, params=params, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+                r = requests.get(
+                    url, params=params, timeout=20, headers={"User-Agent": "Mozilla/5.0"}
+                )
                 r.raise_for_status()
                 payload = r.json()
                 break
@@ -62,7 +70,9 @@ def run(once=False):
             df = df.set_index("timestamp").sort_index()
             df = df[["open", "high", "low", "close", "volume"]]
             df.to_csv(OUT)
-            print(f"[{datetime.now():%H:%M:%S}] IMOEX: {len(df)} баров, последний {df.index[-1]:%Y-%m-%d %H:%M}")
+            print(
+                f"[{datetime.now():%H:%M:%S}] IMOEX: {len(df)} баров, последний {df.index[-1]:%Y-%m-%d %H:%M}"
+            )
         else:
             print(f"[{datetime.now():%H:%M:%S}] IMOEX: 0 свечей")
         if once:
@@ -72,4 +82,5 @@ def run(once=False):
 
 if __name__ == "__main__":
     import sys
+
     run(once="--once" in sys.argv)
