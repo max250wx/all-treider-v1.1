@@ -1,11 +1,12 @@
 """Сборщик стакана и сделок через T-Invest API.
 Пишет в data/live/orderbook_<TICKER>.csv и data/live/trades_<TICKER>.csv.
 """
+
 import csv
 import os
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import yaml
@@ -82,7 +83,7 @@ def save_trades(ticker, trades_list):
     with open(tr_file(ticker), "a", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         for t in trades_list:
-            ts = t.time.isoformat() if t.time else datetime.now(timezone.utc).isoformat()
+            ts = t.time.isoformat() if t.time else datetime.now(UTC).isoformat()
             price = _price(t.price)
             qty = t.quantity
             direction = int(t.direction) if t.direction is not None else 0
@@ -146,17 +147,18 @@ def run(once=False):
 
         print("\nCtrl+C для остановки.\n")
         cycle = 0
-        totals = {t: 0 for t in instruments}
+        totals = dict.fromkeys(instruments, 0)
         try:
             while True:
                 cycle += 1
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 status = []
-                for ticker, (uid, figi, _) in instruments.items():
+                for ticker, (uid, _figi, _) in instruments.items():
                     # Стакан
                     try:
                         ob = client.market_data.get_order_book(
-                            instrument_id=uid, depth=10,
+                            instrument_id=uid,
+                            depth=10,
                         )
                         save_orderbook(ticker, ob, now.isoformat())
                         status.append(f"{ticker}:OB_ok")
@@ -176,8 +178,10 @@ def run(once=False):
                     except Exception as e:
                         status.append(f"{ticker}:TR_err({str(e)[:30]})")
 
-                print(f"[{datetime.now():%H:%M:%S}] цикл {cycle}: {' | '.join(status)} "
-                      f"| totals: {totals}")
+                print(
+                    f"[{datetime.now():%H:%M:%S}] цикл {cycle}: {' | '.join(status)} "
+                    f"| totals: {totals}"
+                )
                 if once:
                     break
                 time.sleep(POLL_INTERVAL_SEC)
