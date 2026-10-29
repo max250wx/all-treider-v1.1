@@ -1,7 +1,7 @@
 """Сборщик новостей с МосБиржи (ISS sitenews) — версия 2."""
 
-import requests
 import pandas as pd
+import requests
 
 
 def fetch_moex_news():
@@ -22,11 +22,13 @@ def fetch_moex_news():
 
         news_list = []
         for item in rows:
-            news_list.append({
-                "timestamp": item[idx_time],
-                "title": item[idx_title],
-                "source": "MOEX",
-            })
+            news_list.append(
+                {
+                    "timestamp": item[idx_time],
+                    "title": item[idx_title],
+                    "source": "MOEX",
+                }
+            )
         return news_list
     except Exception as e:
         print("Ошибка: " + str(e))
@@ -39,7 +41,9 @@ if __name__ == "__main__":
 
     if news:
         df = pd.DataFrame(news)
-        df["timestamp"] = pd.to_datetime(df["timestamp"], format="%Y-%m-%d %H:%M:%S", errors="coerce")
+        df["timestamp"] = pd.to_datetime(
+            df["timestamp"], format="%Y-%m-%d %H:%M:%S", errors="coerce"
+        )
         df = df.dropna(subset=["timestamp"])
         df = df.sort_values("timestamp", ascending=False)
 
