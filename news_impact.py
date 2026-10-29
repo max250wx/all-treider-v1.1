@@ -4,8 +4,9 @@
 """
 
 import os
-import pandas as pd
 from datetime import timedelta
+
+import pandas as pd
 
 
 def load_news():
@@ -53,14 +54,16 @@ def analyze_impact(news, prices, ticker, horizons=(5, 15, 30, 60)):
             price_after = after["mid"].iloc[0]
             change_pct = (price_after / price_before - 1) * 100
 
-            results.append({
-                "timestamp": ts,
-                "ticker": ticker,
-                "sentiment": sent,
-                "horizon_min": h,
-                "change_pct": change_pct,
-                "title": str(row["title"])[:80],
-            })
+            results.append(
+                {
+                    "timestamp": ts,
+                    "ticker": ticker,
+                    "sentiment": sent,
+                    "horizon_min": h,
+                    "change_pct": change_pct,
+                    "title": str(row["title"])[:80],
+                }
+            )
 
     return pd.DataFrame(results)
 
@@ -75,7 +78,7 @@ def print_report(df, ticker):
     print()
 
     # Корреляции
-    print(f"  Корреляция sentiment vs change_pct:")
+    print("  Корреляция sentiment vs change_pct:")
     for h in sorted(df["horizon_min"].unique()):
         sub = df[df["horizon_min"] == h]
         if len(sub) < 5:
@@ -91,7 +94,7 @@ def print_report(df, ticker):
 
     # Средний результат по знаку
     print()
-    print(f"  Среднее изменение цены:")
+    print("  Среднее изменение цены:")
     for h in sorted(df["horizon_min"].unique()):
         sub = df[df["horizon_min"] == h]
         pos = sub[sub["sentiment"] > 0.5]["change_pct"]
@@ -102,7 +105,7 @@ def print_report(df, ticker):
 
     # Топ-5 новостей
     print()
-    print(f"  Топ-5 новостей с наибольшим влиянием (через 15 мин):")
+    print("  Топ-5 новостей с наибольшим влиянием (через 15 мин):")
     sub = df[df["horizon_min"] == 15].copy()
     if len(sub) < 5:
         sub = df[df["horizon_min"] == df["horizon_min"].max()].copy()
@@ -111,7 +114,9 @@ def print_report(df, ticker):
         top = sub.nlargest(5, "abs_change")
         for _, row in top.iterrows():
             ts = row["timestamp"].strftime("%d.%m %H:%M")
-            print(f"    [{ts}] s={row['sentiment']:+.2f} → {row['change_pct']:+.4f}%  {row['title']}")
+            print(
+                f"    [{ts}] s={row['sentiment']:+.2f} → {row['change_pct']:+.4f}%  {row['title']}"
+            )
 
 
 def main():
