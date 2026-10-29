@@ -2,10 +2,11 @@
 Пишет в data/live/rvi_data.csv. Конфиг: config.yaml.
 С retry: MOEX ISS иногда рвёт SSL (блокировка из-за границы).
 """
+
 import csv
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import requests
@@ -27,10 +28,15 @@ RVI_URL = "https://iss.moex.com/iss/engines/stock/markets/index/securities.json"
 def _ensure_header():
     if not RVI_FILE.exists():
         with open(RVI_FILE, "w", newline="", encoding="utf-8") as f:
-            csv.writer(f).writerow([
-                "timestamp", "rvi_current", "rvi_last",
-                "change_pct", "updated_at",
-            ])
+            csv.writer(f).writerow(
+                [
+                    "timestamp",
+                    "rvi_current",
+                    "rvi_last",
+                    "change_pct",
+                    "updated_at",
+                ]
+            )
 
 
 def get_rvi(retries=3) -> dict:
@@ -45,7 +51,9 @@ def get_rvi(retries=3) -> dict:
     for attempt in range(retries):
         try:
             r = requests.get(
-                RVI_URL, params=params, timeout=20,
+                RVI_URL,
+                params=params,
+                timeout=20,
                 headers={"User-Agent": "Mozilla/5.0"},
             )
             r.raise_for_status()
@@ -54,7 +62,7 @@ def get_rvi(retries=3) -> dict:
         except Exception as e:
             last_err = str(e)
             if attempt < retries - 1:
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
             continue
     if data is None:
         return {"error": last_err or "unknown"}
@@ -71,8 +79,8 @@ def get_rvi(retries=3) -> dict:
         return row[cols.index(name)] if name in cols else None
 
     return {
-        "current":    val("CURRENTVALUE"),
-        "last":       val("LASTVALUE"),
+        "current": val("CURRENTVALUE"),
+        "last": val("LASTVALUE"),
         "change_pct": val("LASTCHANGEPRC"),
         "updated_at": val("UPDATETIME") or "",
         "trade_date": val("TRADEDATE") or "",
@@ -81,13 +89,15 @@ def get_rvi(retries=3) -> dict:
 
 def save_rvi(ts_iso, r):
     with open(RVI_FILE, "a", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow([
-            ts_iso,
-            r.get("current"),
-            r.get("last"),
-            r.get("change_pct"),
-            r.get("updated_at"),
-        ])
+        csv.writer(f).writerow(
+            [
+                ts_iso,
+                r.get("current"),
+                r.get("last"),
+                r.get("change_pct"),
+                r.get("updated_at"),
+            ]
+        )
 
 
 def run(once=False):
@@ -96,7 +106,7 @@ def run(once=False):
     print("Ctrl+C для остановки.\n")
     try:
         while True:
-            ts_iso = datetime.now(timezone.utc).isoformat()
+            ts_iso = datetime.now(UTC).isoformat()
             r = get_rvi()
             if "error" in r:
                 print(f"[{datetime.now():%H:%M:%S}] Ошибка: {r['error']}")
@@ -108,8 +118,10 @@ def run(once=False):
                     ch = r["change_pct"]
                     ch_str = f"{ch:+.2f}%" if ch is not None else "н/д"
                     last_str = f"{r['last']:.2f}" if r["last"] is not None else "н/д"
-                    print(f"[{datetime.now():%H:%M:%S}] RVI = {cur:.2f}  "
-                          f"(закр. {last_str}, изм. {ch_str}, обн. {r['updated_at']})")
+                    print(
+                        f"[{datetime.now():%H:%M:%S}] RVI = {cur:.2f}  "
+                        f"(закр. {last_str}, изм. {ch_str}, обн. {r['updated_at']})"
+                    )
                     save_rvi(ts_iso, r)
             if once:
                 break
