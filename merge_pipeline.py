@@ -13,9 +13,9 @@
 """
 
 import os
-import pandas as pd
-import numpy as np
 
+import numpy as np
+import pandas as pd
 
 # ── НАСТРОЙКИ ──
 ORDERBOOK_FILE = "orderbook_raw_rest.csv"
@@ -23,13 +23,14 @@ TRADES_FILE = "trades_raw_rest.csv"
 NEWS_FILE = "news_sentiment.csv"
 OUTPUT_FILE = "combined_data.csv"
 
-TRADE_WINDOW_SEC = 60      # окно агрегации сделок (секунды)
-NEWS_WINDOW_MIN = 15       # окно поиска последней новости (минуты)
+TRADE_WINDOW_SEC = 60  # окно агрегации сделок (секунды)
+NEWS_WINDOW_MIN = 15  # окно поиска последней новости (минуты)
 
 
 # ─────────────────────────────────────────────
 # Загрузка
 # ─────────────────────────────────────────────
+
 
 def load_csv(path, name):
     try:
@@ -48,18 +49,24 @@ def load_csv(path, name):
     return df
 
 
-
 def validate_input_schema(ob, trades):
     """Проверяет схему, идентификаторы и числовые значения входных данных."""
     ob_required = {
-        "timestamp", "ticker", "figi",
+        "timestamp",
+        "ticker",
+        "figi",
         *[f"bid{i}_price" for i in range(1, 6)],
         *[f"bid{i}_qty" for i in range(1, 6)],
         *[f"ask{i}_price" for i in range(1, 6)],
         *[f"ask{i}_qty" for i in range(1, 6)],
     }
     trade_required = {
-        "timestamp", "ticker", "figi", "price", "quantity", "direction",
+        "timestamp",
+        "ticker",
+        "figi",
+        "price",
+        "quantity",
+        "direction",
     }
 
     missing_ob = ob_required - set(ob.columns)
@@ -123,9 +130,11 @@ def validate_input_schema(ob, trades):
 
     return ob, trades
 
+
 # ─────────────────────────────────────────────
 # Производные признаки стакана
 # ─────────────────────────────────────────────
+
 
 def add_orderbook_features(ob):
     ob = ob.copy()
@@ -155,6 +164,7 @@ def add_orderbook_features(ob):
 # Поток сделок в окне
 # ─────────────────────────────────────────────
 
+
 def add_trade_flow(ob, trades):
     if trades.empty:
         print("  Сделки отсутствуют — поток обнуляется")
@@ -169,9 +179,7 @@ def add_trade_flow(ob, trades):
     required = {"timestamp", "price", "quantity", "direction"}
     missing = required - set(trades.columns)
     if missing:
-        raise ValueError(
-            f"В данных сделок отсутствуют колонки: {sorted(missing)}"
-        )
+        raise ValueError(f"В данных сделок отсутствуют колонки: {sorted(missing)}")
     if "timestamp" not in ob.columns:
         raise ValueError("В стакане отсутствует колонка timestamp")
 
@@ -221,10 +229,7 @@ def add_trade_flow(ob, trades):
             ob_ticker = ob_row.get("ticker")
 
             if has_tr_figi and has_ob_figi and pd.notna(ob_figi):
-                w = w[
-                    w["figi"].astype("string").str.strip()
-                    == str(ob_figi).strip()
-                ]
+                w = w[w["figi"].astype("string").str.strip() == str(ob_figi).strip()]
                 if w.empty:
                     print(
                         f"  Предупреждение: сделки не найдены по figi "
@@ -242,9 +247,7 @@ def add_trade_flow(ob, trades):
                     "идентификатор инструмента отсутствует"
                 )
             else:
-                raise ValueError(
-                    "В данных нет figi или ticker для проверки инструмента"
-                )
+                raise ValueError("В данных нет figi или ticker для проверки инструмента")
 
         if w.empty:
             buy_volume.append(0.0)
@@ -262,14 +265,8 @@ def add_trade_flow(ob, trades):
         buy_volume.append(bv)
         sell_volume.append(sv)
         trade_count.append(len(w))
-        vwap.append(
-            float(w["notional"].sum() / total_quantity)
-            if total_quantity > 0 else np.nan
-        )
-        trade_imb.append(
-            (bv - sv) / directional_volume
-            if directional_volume > 0 else 0.0
-        )
+        vwap.append(float(w["notional"].sum() / total_quantity) if total_quantity > 0 else np.nan)
+        trade_imb.append((bv - sv) / directional_volume if directional_volume > 0 else 0.0)
 
     ob = ob.copy()
     ob["buy_volume"] = buy_volume
@@ -294,36 +291,26 @@ def merge_news(ob, news):
     required = {"timestamp", "title", "sentiment"}
     missing = required - set(news.columns)
     if missing:
-        raise ValueError(
-            f"В файле новостей отсутствуют колонки: {sorted(missing)}"
-        )
+        raise ValueError(f"В файле новостей отсутствуют колонки: {sorted(missing)}")
 
     if "timestamp" not in ob.columns:
         raise ValueError("В стакане отсутствует колонка timestamp")
 
-    news_slim = news[
-        ["timestamp", "title", "sentiment"]
-    ].copy()
+    news_slim = news[["timestamp", "title", "sentiment"]].copy()
 
-    news_slim = news_slim.rename(columns={
-        "timestamp": "_news_ts",
-        "title": "news_title",
-        "sentiment": "news_sentiment",
-    })
+    news_slim = news_slim.rename(
+        columns={
+            "timestamp": "_news_ts",
+            "title": "news_title",
+            "sentiment": "news_sentiment",
+        }
+    )
 
-    ob["timestamp"] = pd.to_datetime(
-        ob["timestamp"], utc=True, errors="coerce"
-    )
-    news_slim["_news_ts"] = pd.to_datetime(
-        news_slim["_news_ts"], utc=True, errors="coerce"
-    )
+    ob["timestamp"] = pd.to_datetime(ob["timestamp"], utc=True, errors="coerce")
+    news_slim["_news_ts"] = pd.to_datetime(news_slim["_news_ts"], utc=True, errors="coerce")
 
     ob = ob.dropna(subset=["timestamp"]).sort_values("timestamp")
-    news_slim = (
-        news_slim
-        .dropna(subset=["_news_ts"])
-        .sort_values("_news_ts")
-    )
+    news_slim = news_slim.dropna(subset=["_news_ts"]).sort_values("_news_ts")
 
     ob = pd.merge_asof(
         ob,
@@ -334,9 +321,7 @@ def merge_news(ob, news):
         tolerance=pd.Timedelta(minutes=NEWS_WINDOW_MIN),
     )
 
-    ob["news_age_min"] = (
-        (ob["timestamp"] - ob["_news_ts"]).dt.total_seconds() / 60.0
-    )
+    ob["news_age_min"] = (ob["timestamp"] - ob["_news_ts"]).dt.total_seconds() / 60.0
 
     ob["news_sentiment"] = ob["news_sentiment"].fillna(0.0)
     ob["news_title"] = ob["news_title"].fillna("")
@@ -347,6 +332,7 @@ def merge_news(ob, news):
 # ─────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────
+
 
 def main():
     print("=" * 60)
@@ -398,41 +384,49 @@ def main():
         raise RuntimeError("Итоговый DataFrame пуст; существующий результат сохранён.")
 
     required_output = {
-        "timestamp", "ticker", "figi",
-        "mid_price", "spread", "spread_pct",
-        "book_imbalance", "microprice",
-        "buy_volume", "sell_volume", "trade_count",
-        "vwap", "trade_imbalance",
-        "news_sentiment", "news_age_min",
+        "timestamp",
+        "ticker",
+        "figi",
+        "mid_price",
+        "spread",
+        "spread_pct",
+        "book_imbalance",
+        "microprice",
+        "buy_volume",
+        "sell_volume",
+        "trade_count",
+        "vwap",
+        "trade_imbalance",
+        "news_sentiment",
+        "news_age_min",
     }
     missing_output = required_output.difference(ob.columns)
     if missing_output:
         raise RuntimeError(
-            "В итоговых данных отсутствуют колонки: "
-            + ", ".join(sorted(missing_output))
+            "В итоговых данных отсутствуют колонки: " + ", ".join(sorted(missing_output))
         )
 
     if ob["timestamp"].isna().any():
         raise RuntimeError("В итоговых данных есть некорректные timestamp.")
 
     core_numeric = [
-        "mid_price", "spread", "spread_pct",
-        "book_imbalance", "microprice",
-        "buy_volume", "sell_volume", "trade_count",
-        "trade_imbalance", "news_sentiment",
+        "mid_price",
+        "spread",
+        "spread_pct",
+        "book_imbalance",
+        "microprice",
+        "buy_volume",
+        "sell_volume",
+        "trade_count",
+        "trade_imbalance",
+        "news_sentiment",
     ]
 
-    core_values = ob[core_numeric].apply(
-        pd.to_numeric, errors="coerce"
-    )
+    core_values = ob[core_numeric].apply(pd.to_numeric, errors="coerce")
 
-    if (
-        core_values.isna().any().any()
-        or not np.isfinite(core_values.to_numpy(dtype=float)).all()
-    ):
+    if core_values.isna().any().any() or not np.isfinite(core_values.to_numpy(dtype=float)).all():
         raise RuntimeError(
-            "В основных числовых признаках есть пропуски, "
-            "нечисловые или бесконечные значения."
+            "В основных числовых признаках есть пропуски, нечисловые или бесконечные значения."
         )
 
     # VWAP может отсутствовать, если в окне нет сделок.
@@ -448,9 +442,7 @@ def main():
     has_trades = trade_count > 0
 
     if vwap[has_trades].isna().any():
-        raise RuntimeError(
-            "Для строк с сделками отсутствует vwap."
-        )
+        raise RuntimeError("Для строк с сделками отсутствует vwap.")
 
     if not np.isfinite(vwap.dropna().to_numpy(dtype=float)).all():
         raise RuntimeError("В vwap есть бесконечные значения.")
@@ -466,13 +458,8 @@ def main():
     if not np.isfinite(valid_news_age.to_numpy(dtype=float)).all():
         raise RuntimeError("В news_age_min есть бесконечные значения.")
 
-    if (
-        (valid_news_age < 0).any()
-        or (valid_news_age > NEWS_WINDOW_MIN).any()
-    ):
-        raise RuntimeError(
-            f"news_age_min выходит за диапазон 0–{NEWS_WINDOW_MIN} минут."
-        )
+    if (valid_news_age < 0).any() or (valid_news_age > NEWS_WINDOW_MIN).any():
+        raise RuntimeError(f"news_age_min выходит за диапазон 0–{NEWS_WINDOW_MIN} минут.")
 
     print("  Проверка качества итоговых данных пройдена.")
     temp_output = OUTPUT_FILE + ".tmp"
@@ -490,9 +477,14 @@ def main():
 
     print("\n─ Первые 3 строки (ключевые колонки) ─")
     cols_show = [
-        "timestamp", "mid_price", "spread_pct",
-        "book_imbalance", "buy_volume", "sell_volume",
-        "trade_imbalance", "news_sentiment",
+        "timestamp",
+        "mid_price",
+        "spread_pct",
+        "book_imbalance",
+        "buy_volume",
+        "sell_volume",
+        "trade_imbalance",
+        "news_sentiment",
     ]
     cols_show = [c for c in cols_show if c in ob.columns]
     print(ob[cols_show].head(3).to_string(index=False))
