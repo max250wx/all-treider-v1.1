@@ -1,6 +1,7 @@
 """Walk-forward бэктест на M5/M15/M30 (ресемплинг из M1).
 Trailing EMA50 ОТКЛЮЧЁН — выход только по Stop / TP1 / TP2.
 """
+
 import argparse
 import sys
 from datetime import datetime
@@ -46,10 +47,19 @@ def load_csv(name, tf="5min"):
     df = df[["open", "high", "low", "close", "volume"]].dropna()
     df = df[df["volume"] > 0].sort_index()
     print(f"M1: {len(df)} баров")
-    df = df.resample(tf).agg({
-        "open": "first", "high": "max", "low": "min",
-        "close": "last", "volume": "sum",
-    }).dropna()
+    df = (
+        df.resample(tf)
+        .agg(
+            {
+                "open": "first",
+                "high": "max",
+                "low": "min",
+                "close": "last",
+                "volume": "sum",
+            }
+        )
+        .dropna()
+    )
     print(f"{tf}: {len(df)} баров ({df.index[0]:%Y-%m-%d} — {df.index[-1]:%Y-%m-%d})")
     return df
 
@@ -60,12 +70,15 @@ def add_indicators(df):
     df["ema50"] = c.ewm(span=50, adjust=False).mean()
     df["ema200"] = c.ewm(span=200, adjust=False).mean()
 
-    tr = pd.concat([
-        df["high"] - df["low"],
-        (df["high"] - c.shift()).abs(),
-        (df["low"] - c.shift()).abs(),
-    ], axis=1).max(axis=1)
-    df["atr"] = tr.ewm(alpha=1/14, adjust=False).mean()
+    tr = pd.concat(
+        [
+            df["high"] - df["low"],
+            (df["high"] - c.shift()).abs(),
+            (df["low"] - c.shift()).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    df["atr"] = tr.ewm(alpha=1 / 14, adjust=False).mean()
     df["atr_pct"] = df["atr"] / c * 100
     df["vol_sma"] = df["volume"].rolling(20).mean()
 
@@ -158,11 +171,14 @@ def run_backtest(df):
                 obv_up = row["obv"] > df["obv"].iloc[i - 5] if i >= 5 else False
                 obv_dn = row["obv"] < df["obv"].iloc[i - 5] if i >= 5 else False
 
-                if (regime == "UPTREND" and row["close"] > prev["high"]
-                        and row["volume"] >= row["vol_sma"]
-                        and row["close"] > row["vwap"]
-                        and obv_up
-                        and row["atr_pct"] < ATR_NORMAL_MAX):
+                if (
+                    regime == "UPTREND"
+                    and row["close"] > prev["high"]
+                    and row["volume"] >= row["vol_sma"]
+                    and row["close"] > row["vwap"]
+                    and obv_up
+                    and row["atr_pct"] < ATR_NORMAL_MAX
+                ):
                     entry = row["close"]
                     stop = entry - 2.0 * row["atr"]
                     risk = entry - stop
@@ -170,16 +186,23 @@ def run_backtest(df):
                         qty = (CAPITAL * RISK_PER_TRADE) / risk
                         qty = min(qty, CAPITAL * MAX_EXPOSURE / entry)
                         position = {
-                            "side": "LONG", "entry": entry, "stop": stop,
-                            "tp1": entry + risk, "tp2": entry + 2 * risk,
-                            "qty": qty, "partial_done": False,
+                            "side": "LONG",
+                            "entry": entry,
+                            "stop": stop,
+                            "tp1": entry + risk,
+                            "tp2": entry + 2 * risk,
+                            "qty": qty,
+                            "partial_done": False,
                         }
 
-                elif (regime == "DOWNTREND" and row["close"] < prev["low"]
-                        and row["volume"] >= row["vol_sma"]
-                        and row["close"] < row["vwap"]
-                        and obv_dn
-                        and row["atr_pct"] < ATR_NORMAL_MAX):
+                elif (
+                    regime == "DOWNTREND"
+                    and row["close"] < prev["low"]
+                    and row["volume"] >= row["vol_sma"]
+                    and row["close"] < row["vwap"]
+                    and obv_dn
+                    and row["atr_pct"] < ATR_NORMAL_MAX
+                ):
                     entry = row["close"]
                     stop = entry + 2.0 * row["atr"]
                     risk = stop - entry
@@ -187,9 +210,13 @@ def run_backtest(df):
                         qty = (CAPITAL * RISK_PER_TRADE) / risk
                         qty = min(qty, CAPITAL * MAX_EXPOSURE / entry)
                         position = {
-                            "side": "SHORT", "entry": entry, "stop": stop,
-                            "tp1": entry - risk, "tp2": entry - 2 * risk,
-                            "qty": qty, "partial_done": False,
+                            "side": "SHORT",
+                            "entry": entry,
+                            "stop": stop,
+                            "tp1": entry - risk,
+                            "tp2": entry - 2 * risk,
+                            "qty": qty,
+                            "partial_done": False,
                         }
 
         # ─── equity tracking ───
@@ -204,8 +231,7 @@ def run_backtest(df):
 
 def metrics(trades, equity_end, max_dd):
     if not trades:
-        return {"trades": 0, "winrate": 0, "pf": 0, "pnl": 0,
-                "dd": 0, "return_pct": 0}
+        return {"trades": 0, "winrate": 0, "pf": 0, "pnl": 0, "dd": 0, "return_pct": 0}
     pnl = pd.Series([t["pnl"] for t in trades])
     wins = pnl[pnl > 0]
     losses = pnl[pnl <= 0]
@@ -237,9 +263,11 @@ def walk_forward(df, n_windows=6):
         m["from"] = chunk.index[0].strftime("%Y-%m-%d")
         m["to"] = chunk.index[-1].strftime("%Y-%m-%d")
         rows.append(m)
-        print(f"  окно {k+1}: {m['from']}..{m['to']}  "
-              f"сделок {m['trades']:>3}  WR {m['winrate']:>5}%  "
-              f"PF {str(m['pf']):>5}  DD {m['dd']:>6}%  ret {m['return_pct']:+.2f}%")
+        print(
+            f"  окно {k + 1}: {m['from']}..{m['to']}  "
+            f"сделок {m['trades']:>3}  WR {m['winrate']:>5}%  "
+            f"PF {str(m['pf']):>5}  DD {m['dd']:>6}%  ret {m['return_pct']:+.2f}%"
+        )
     return pd.DataFrame(rows)
 
 
