@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "fix/**", "feature/**"]
+    branches: [main, "fix/**", "feature/**", "refactor/**"]
   pull_request:
     branches: [main]
 
@@ -27,7 +27,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install ruff pytest python-dotenv pandas backtesting
 
-      
       - name: Ruff (lint)
         run: ruff check config.py bot.py tests/ src/
 
