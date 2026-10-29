@@ -4,13 +4,13 @@
 """
 
 import os
-import numpy as np
-import pandas as pd
 from datetime import timedelta
 
+import numpy as np
+import pandas as pd
 
-MIN_ABS_SENTIMENT = 0.5   # игнорируем нейтральные
-MIN_SAMPLES = 10          # минимум наблюдений в группе
+MIN_ABS_SENTIMENT = 0.5  # игнорируем нейтральные
+MIN_SAMPLES = 10  # минимум наблюдений в группе
 
 
 def load_news():
@@ -48,12 +48,14 @@ def analyze(news, prices, ticker, horizons=(5, 15, 30)):
             if after.empty:
                 continue
             p1 = after["mid"].iloc[0]
-            results.append({
-                "ticker": ticker,
-                "sentiment": sent,
-                "horizon": h,
-                "change_pct": (p1 / p0 - 1) * 100,
-            })
+            results.append(
+                {
+                    "ticker": ticker,
+                    "sentiment": sent,
+                    "horizon": h,
+                    "change_pct": (p1 / p0 - 1) * 100,
+                }
+            )
 
     return pd.DataFrame(results)
 
@@ -63,8 +65,7 @@ def bootstrap_mean(values, n_iter=1000):
     if len(values) < 5:
         return None, None
     rng = np.random.default_rng(42)
-    means = [rng.choice(values, size=len(values), replace=True).mean()
-             for _ in range(n_iter)]
+    means = [rng.choice(values, size=len(values), replace=True).mean() for _ in range(n_iter)]
     return np.percentile(means, 2.5), np.percentile(means, 97.5)
 
 
@@ -88,16 +89,24 @@ def report(df, ticker):
         if len(pos) >= MIN_SAMPLES:
             m = pos.mean()
             lo, hi = bootstrap_mean(pos)
-            mark = " ✓" if lo is not None and lo > 0 else (" ✗" if hi is not None and hi < 0 else "")
-            print(f"    позитивные (N={len(pos):>3}): {m:+.4f}%  [95% CI: {lo:+.4f}..{hi:+.4f}]{mark}")
+            mark = (
+                " ✓" if lo is not None and lo > 0 else (" ✗" if hi is not None and hi < 0 else "")
+            )
+            print(
+                f"    позитивные (N={len(pos):>3}): {m:+.4f}%  [95% CI: {lo:+.4f}..{hi:+.4f}]{mark}"
+            )
         else:
             print(f"    позитивные: мало данных (N={len(pos)})")
 
         if len(neg) >= MIN_SAMPLES:
             m = neg.mean()
             lo, hi = bootstrap_mean(neg)
-            mark = " ✓" if lo is not None and lo > 0 else (" ✗" if hi is not None and hi < 0 else "")
-            print(f"    негативные (N={len(neg):>3}): {m:+.4f}%  [95% CI: {lo:+.4f}..{hi:+.4f}]{mark}")
+            mark = (
+                " ✓" if lo is not None and lo > 0 else (" ✗" if hi is not None and hi < 0 else "")
+            )
+            print(
+                f"    негативные (N={len(neg):>3}): {m:+.4f}%  [95% CI: {lo:+.4f}..{hi:+.4f}]{mark}"
+            )
         else:
             print(f"    негативные: мало данных (N={len(neg)})")
 
