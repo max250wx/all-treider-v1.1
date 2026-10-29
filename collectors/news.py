@@ -2,9 +2,10 @@
 Пишет в data/live/news_sentiment.csv.
 Флаг --once — один цикл.
 """
+
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -22,21 +23,54 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 OUT_FILE = DATA_DIR / "news_sentiment.csv"
 
 RSS_FEEDS = [
-    ("RBC",       "https://rssexport.rbc.ru/rbcnews/news/30/full.rss"),
-    ("Interfax",  "https://www.interfax.ru/rss.asp"),
+    ("RBC", "https://rssexport.rbc.ru/rbcnews/news/30/full.rss"),
+    ("Interfax", "https://www.interfax.ru/rss.asp"),
     ("Vedomosti", "https://www.vedomosti.ru/rss/news"),
 ]
 
 STRONG_NEGATIVE = [
-    "санкц", "атак", "удар", "войн", "конфликт", "банкрот",
-    "иск о", "штраф", "запрет", "ограничен", "обвал", "кризис",
-    "катастроф", "убийств", "теракт", "разрушен", "потер", "угроз",
-    "обвинен", "провал", "шок", "сорвал", "претензии", "авари",
+    "санкц",
+    "атак",
+    "удар",
+    "войн",
+    "конфликт",
+    "банкрот",
+    "иск о",
+    "штраф",
+    "запрет",
+    "ограничен",
+    "обвал",
+    "кризис",
+    "катастроф",
+    "убийств",
+    "теракт",
+    "разрушен",
+    "потер",
+    "угроз",
+    "обвинен",
+    "провал",
+    "шок",
+    "сорвал",
+    "претензии",
+    "авари",
 ]
 STRONG_POSITIVE = [
-    "рекорд", "прибыл", "рост ", "вырос", "соглашен", "перемир",
-    "сотрудничеств", "подписа", "успех", "прорыв", "восстановлен",
-    "поддержк", "укреплен", "позитив", "договор", "мирн",
+    "рекорд",
+    "прибыл",
+    "рост ",
+    "вырос",
+    "соглашен",
+    "перемир",
+    "сотрудничеств",
+    "подписа",
+    "успех",
+    "прорыв",
+    "восстановлен",
+    "поддержк",
+    "укреплен",
+    "позитив",
+    "договор",
+    "мирн",
 ]
 
 
@@ -62,11 +96,13 @@ def fetch_rss(source, url):
             pub_el = item.find("pubDate")
             if title_el is None:
                 continue
-            items.append({
-                "timestamp": pub_el.text if pub_el is not None else None,
-                "title": title_el.text.strip() if title_el.text else "",
-                "source": source,
-            })
+            items.append(
+                {
+                    "timestamp": pub_el.text if pub_el is not None else None,
+                    "title": title_el.text.strip() if title_el.text else "",
+                    "source": source,
+                }
+            )
         return items
     except Exception as e:
         print(f"{source}: ошибка — {e}")
@@ -99,6 +135,7 @@ def run(once=False, use_model=True):
     if use_model:
         try:
             from transformers import pipeline
+
             print("Загружаем RuBERT...")
             clf = pipeline(
                 "sentiment-analysis",
@@ -119,8 +156,7 @@ def run(once=False, use_model=True):
 
             if all_news:
                 df_new = pd.DataFrame(all_news)
-                df_new["timestamp"] = pd.to_datetime(
-                    df_new["timestamp"], utc=True, errors="coerce")
+                df_new["timestamp"] = pd.to_datetime(df_new["timestamp"], utc=True, errors="coerce")
                 df_new = df_new.dropna(subset=["timestamp"])
 
                 df_new["sentiment"] = score_news(clf, df_new["title"].tolist())
@@ -130,7 +166,8 @@ def run(once=False, use_model=True):
                         old = pd.read_csv(OUT_FILE)
                         if "timestamp" in old.columns:
                             old["timestamp"] = pd.to_datetime(
-                                old["timestamp"], utc=True, errors="coerce")
+                                old["timestamp"], utc=True, errors="coerce"
+                            )
                         df = pd.concat([old, df_new]).drop_duplicates(subset=["title"])
                     except Exception:
                         df = df_new
@@ -139,8 +176,10 @@ def run(once=False, use_model=True):
 
                 df = df.sort_values("timestamp", ascending=False)
                 df.to_csv(OUT_FILE, index=False)
-                print(f"[{datetime.now():%H:%M:%S}] всего: {len(df)}, "
-                      f"средний сентимент: {df['sentiment'].mean():+.3f}")
+                print(
+                    f"[{datetime.now():%H:%M:%S}] всего: {len(df)}, "
+                    f"средний сентимент: {df['sentiment'].mean():+.3f}"
+                )
 
             if once:
                 break
