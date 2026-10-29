@@ -4,19 +4,25 @@
 """
 
 import warnings
-warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
 from backtesting import Backtest, Strategy
 
+warnings.filterwarnings("ignore")
+
 
 def load_csv(path):
     df = pd.read_csv(path, parse_dates=True, index_col=0)
-    df = df.rename(columns={
-        "open": "Open", "high": "High", "low": "Low",
-        "close": "Close", "volume": "Volume",
-    })
+    df = df.rename(
+        columns={
+            "open": "Open",
+            "high": "High",
+            "low": "Low",
+            "close": "Close",
+            "volume": "Volume",
+        }
+    )
     df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
     df = df[df["Volume"] > 0].sort_index()
     return df
@@ -43,6 +49,7 @@ class RSIReversion(Strategy):
             al = loss.ewm(alpha=1 / p, adjust=False).mean()
             rs = ag / al.replace(0, np.nan)
             return 100 - 100 / (1 + rs)
+
         self.rsi = self.I(rsi, self.data.Close, self.rsi_period)
 
     def next(self):
@@ -51,13 +58,17 @@ class RSIReversion(Strategy):
         price = self.data.Close[-1]
         r = self.rsi[-1]
         if r < self.rsi_buy:
-            self.buy(size=self.size,
-                     sl=price * (1 - self.stop_pct),
-                     tp=price * (1 + self.tp_pct))
+            self.buy(
+                size=self.size,
+                sl=price * (1 - self.stop_pct),
+                tp=price * (1 + self.tp_pct),
+            )
         elif r > self.rsi_sell:
-            self.sell(size=self.size,
-                      sl=price * (1 + self.stop_pct),
-                      tp=price * (1 - self.tp_pct))
+            self.sell(
+                size=self.size,
+                sl=price * (1 + self.stop_pct),
+                tp=price * (1 - self.tp_pct),
+            )
 
 
 # ─────────────────────────────────────────────
@@ -82,6 +93,7 @@ class RSIReversionFiltered(Strategy):
             al = loss.ewm(alpha=1 / p, adjust=False).mean()
             rs = ag / al.replace(0, np.nan)
             return 100 - 100 / (1 + rs)
+
         def ema(s, p):
             return pd.Series(s).ewm(span=p, adjust=False).mean()
 
@@ -106,13 +118,17 @@ class RSIReversionFiltered(Strategy):
             return
 
         if r < self.rsi_buy and uptrend:
-            self.buy(size=self.size,
-                     sl=price * (1 - self.stop_pct),
-                     tp=price * (1 + self.tp_pct))
+            self.buy(
+                size=self.size,
+                sl=price * (1 - self.stop_pct),
+                tp=price * (1 + self.tp_pct),
+            )
         elif r > self.rsi_sell and downtrend:
-            self.sell(size=self.size,
-                      sl=price * (1 + self.stop_pct),
-                      tp=price * (1 - self.tp_pct))
+            self.sell(
+                size=self.size,
+                sl=price * (1 + self.stop_pct),
+                tp=price * (1 - self.tp_pct),
+            )
 
 
 # ─────────────────────────────────────────────
@@ -128,6 +144,7 @@ class EMACross(Strategy):
     def init(self):
         def ema(s, p):
             return pd.Series(s).ewm(span=p, adjust=False).mean()
+
         self.fast = self.I(ema, self.data.Close, self.fast)
         self.slow = self.I(ema, self.data.Close, self.slow)
 
@@ -136,13 +153,17 @@ class EMACross(Strategy):
             return
         price = self.data.Close[-1]
         if self.fast[-2] <= self.slow[-2] and self.fast[-1] > self.slow[-1]:
-            self.buy(size=self.size,
-                     sl=price * (1 - self.stop_pct),
-                     tp=price * (1 + self.tp_pct))
+            self.buy(
+                size=self.size,
+                sl=price * (1 - self.stop_pct),
+                tp=price * (1 + self.tp_pct),
+            )
         elif self.fast[-2] >= self.slow[-2] and self.fast[-1] < self.slow[-1]:
-            self.sell(size=self.size,
-                      sl=price * (1 + self.stop_pct),
-                      tp=price * (1 - self.tp_pct))
+            self.sell(
+                size=self.size,
+                sl=price * (1 + self.stop_pct),
+                tp=price * (1 - self.tp_pct),
+            )
 
 
 # ─────────────────────────────────────────────
@@ -159,11 +180,13 @@ class EMACrossFiltered(Strategy):
     def init(self):
         def ema(s, p):
             return pd.Series(s).ewm(span=p, adjust=False).mean()
+
         self.fast = self.I(ema, self.data.Close, self.fast)
         self.slow = self.I(ema, self.data.Close, self.slow)
         self.vol_ma = self.I(
             lambda s, p: pd.Series(s).rolling(p).mean(),
-            self.data.Volume, self.vol_period,
+            self.data.Volume,
+            self.vol_period,
         )
 
     def next(self):
@@ -176,13 +199,17 @@ class EMACrossFiltered(Strategy):
 
         price = self.data.Close[-1]
         if self.fast[-2] <= self.slow[-2] and self.fast[-1] > self.slow[-1]:
-            self.buy(size=self.size,
-                     sl=price * (1 - self.stop_pct),
-                     tp=price * (1 + self.tp_pct))
+            self.buy(
+                size=self.size,
+                sl=price * (1 - self.stop_pct),
+                tp=price * (1 + self.tp_pct),
+            )
         elif self.fast[-2] >= self.slow[-2] and self.fast[-1] < self.slow[-1]:
-            self.sell(size=self.size,
-                      sl=price * (1 + self.stop_pct),
-                      tp=price * (1 - self.tp_pct))
+            self.sell(
+                size=self.size,
+                sl=price * (1 + self.stop_pct),
+                tp=price * (1 - self.tp_pct),
+            )
 
 
 # ─────────────────────────────────────────────
@@ -196,35 +223,42 @@ if __name__ == "__main__":
     print(f"Цена: {data['Close'].min():.2f} … {data['Close'].max():.2f}\n")
 
     strategies = [
-        ("RSI Reversion (raw)",       RSIReversion),
-        ("RSI Reversion (filtered)",  RSIReversionFiltered),
-        ("EMA Cross (raw)",           EMACross),
-        ("EMA Cross (filtered)",      EMACrossFiltered),
+        ("RSI Reversion (raw)", RSIReversion),
+        ("RSI Reversion (filtered)", RSIReversionFiltered),
+        ("EMA Cross (raw)", EMACross),
+        ("EMA Cross (filtered)", EMACrossFiltered),
     ]
 
     results = []
     for name, cls in strategies:
         bt = Backtest(
-            data, cls,
+            data,
+            cls,
             cash=1_000_000,
-            commission=0.000066,   # 0.0066% — реальная комиссия фьючерса MOEX (тейкер)
-            spread=0.00005,        # 0.005% — 1 пункт на цене 2200
-            margin=0.1,            # ГО фьючерса ≈ 10%
+            commission=0.000066,  # 0.0066% — реальная комиссия фьючерса MOEX (тейкер)
+            spread=0.00005,  # 0.005% — 1 пункт на цене 2200
+            margin=0.1,  # ГО фьючерса ≈ 10%
             exclusive_orders=True,
             trade_on_close=False,
         )
         stats = bt.run()
 
-        results.append({
-            "Strategy": name,
-            "Trades": int(stats["# Trades"]),
-            "WinRate%": round(stats["Win Rate [%]"], 2),
-            "Return%": round(stats["Return [%]"], 3),
-            "AvgTrade%": round(stats["Avg. Trade [%]"], 4),
-            "PF": round(stats["Profit Factor"], 3) if stats["Profit Factor"] != np.inf else np.inf,
-            "Sharpe": round(stats["Sharpe Ratio"], 2) if stats["Sharpe Ratio"] != np.inf else np.inf,
-            "MaxDD%": round(stats["Max. Drawdown [%]"], 3),
-        })
+        results.append(
+            {
+                "Strategy": name,
+                "Trades": int(stats["# Trades"]),
+                "WinRate%": round(stats["Win Rate [%]"], 2),
+                "Return%": round(stats["Return [%]"], 3),
+                "AvgTrade%": round(stats["Avg. Trade [%]"], 4),
+                "PF": round(stats["Profit Factor"], 3)
+                if stats["Profit Factor"] != np.inf
+                else np.inf,
+                "Sharpe": round(stats["Sharpe Ratio"], 2)
+                if stats["Sharpe Ratio"] != np.inf
+                else np.inf,
+                "MaxDD%": round(stats["Max. Drawdown [%]"], 3),
+            }
+        )
 
     summary = pd.DataFrame(results)
     print("=" * 95)
