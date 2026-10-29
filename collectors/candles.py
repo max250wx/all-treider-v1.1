@@ -1,13 +1,14 @@
 """Сбор M10 свечей через T-Invest каждые 10 минут."""
+
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
-from t_tech.invest import Client, CandleInterval
+from t_tech.invest import CandleInterval, Client
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env", override=True)
@@ -37,11 +38,13 @@ def get_uid(client, ticker):
 
 
 def fetch(client, uid):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     try:
         r = client.market_data.get_candles(
-            instrument_id=uid, from_=now - timedelta(days=DAYS_BACK),
-            to=now, interval=INTERVAL,
+            instrument_id=uid,
+            from_=now - timedelta(days=DAYS_BACK),
+            to=now,
+            interval=INTERVAL,
         )
         return r.candles
     except Exception as e:
@@ -50,14 +53,17 @@ def fetch(client, uid):
 
 
 def to_df(candles):
-    rows = [{
-        "timestamp": c.time,
-        "open": c.open.units + c.open.nano / 1e9,
-        "high": c.high.units + c.high.nano / 1e9,
-        "low": c.low.units + c.low.nano / 1e9,
-        "close": c.close.units + c.close.nano / 1e9,
-        "volume": c.volume,
-    } for c in candles]
+    rows = [
+        {
+            "timestamp": c.time,
+            "open": c.open.units + c.open.nano / 1e9,
+            "high": c.high.units + c.high.nano / 1e9,
+            "low": c.low.units + c.low.nano / 1e9,
+            "close": c.close.units + c.close.nano / 1e9,
+            "volume": c.volume,
+        }
+        for c in candles
+    ]
     df = pd.DataFrame(rows)
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     return df.set_index("timestamp").sort_index()
@@ -80,8 +86,10 @@ def run(once=False):
                 df = to_df(candles)
                 out = DATA_DIR / f"candles_{ticker}.csv"
                 df.to_csv(out)
-                print(f"[{datetime.now():%H:%M:%S}] {ticker}: {len(df)} баров, "
-                      f"последний {df.index[-1]:%Y-%m-%d %H:%M}")
+                print(
+                    f"[{datetime.now():%H:%M:%S}] {ticker}: {len(df)} баров, "
+                    f"последний {df.index[-1]:%Y-%m-%d %H:%M}"
+                )
         if once:
             break
         time.sleep(POLL_MIN * 60)
@@ -89,4 +97,5 @@ def run(once=False):
 
 if __name__ == "__main__":
     import sys
+
     run(once="--once" in sys.argv)
