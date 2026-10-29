@@ -1,4 +1,5 @@
 """Walk-forward бэктест по правилам V2.4.1 на реальных данных MOEX."""
+
 import argparse
 import sys
 from datetime import datetime
@@ -21,10 +22,10 @@ RISK_PER_TRADE = 0.003
 DAILY_LOSS_LIMIT = 0.015
 MAX_EXPOSURE = 0.30
 
-ATR_NORMAL_MAX = 0.15     # было 2.5 — на M1 медиана 0.055, 3× медианы
-ATR_PANIC = 0.30          # было 4.0 — почти максимум
-ATR_MIN = 0.005           # было 0.5 — отсекаем самые тихие 5–10%
-ATR_MAX = 0.30            # было 6.0 — отсекаем топ-1% самых волатильных
+ATR_NORMAL_MAX = 0.15  # было 2.5 — на M1 медиана 0.055, 3× медианы
+ATR_PANIC = 0.30  # было 4.0 — почти максимум
+ATR_MIN = 0.005  # было 0.5 — отсекаем самые тихие 5–10%
+ATR_MAX = 0.30  # было 6.0 — отсекаем топ-1% самых волатильных
 
 
 def find_file(name):
@@ -45,7 +46,9 @@ def load_csv(name):
     needed = ["open", "high", "low", "close", "volume"]
     df = df[[c for c in needed if c in df.columns]].dropna()
     df = df[df["volume"] > 0].sort_index()
-    print(f"Загружено {len(df)} баров из {p.name} ({df.index[0]:%Y-%m-%d} — {df.index[-1]:%Y-%m-%d})")
+    print(
+        f"Загружено {len(df)} баров из {p.name} ({df.index[0]:%Y-%m-%d} — {df.index[-1]:%Y-%m-%d})"
+    )
     return df
 
 
@@ -59,7 +62,7 @@ def add_indicators(df):
     tr2 = (df["high"] - c.shift()).abs()
     tr3 = (df["low"] - c.shift()).abs()
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    df["atr"] = tr.ewm(alpha=1/14, adjust=False).mean()
+    df["atr"] = tr.ewm(alpha=1 / 14, adjust=False).mean()
     df["atr_pct"] = df["atr"] / c * 100
 
     df["vol_sma"] = df["volume"].rolling(20).mean()
@@ -131,10 +134,15 @@ def run_backtest(df):
                     pnl1 = (position["tp1"] - position["entry"]) * partial_qty
                     equity += pnl1
                     daily_pnl += pnl1
-                    trades.append({
-                        "entry_time": position["entry_time"], "exit_time": df.index[i],
-                        "side": position["side"], "pnl": pnl1, "reason": "tp1_partial",
-                    })
+                    trades.append(
+                        {
+                            "entry_time": position["entry_time"],
+                            "exit_time": df.index[i],
+                            "side": position["side"],
+                            "pnl": pnl1,
+                            "reason": "tp1_partial",
+                        }
+                    )
                     position["qty"] -= partial_qty
                     position["stop"] = position["entry"]
                     position["partial_done"] = True
@@ -143,10 +151,15 @@ def run_backtest(df):
                     pnl1 = (position["entry"] - position["tp1"]) * partial_qty
                     equity += pnl1
                     daily_pnl += pnl1
-                    trades.append({
-                        "entry_time": position["entry_time"], "exit_time": df.index[i],
-                        "side": position["side"], "pnl": pnl1, "reason": "tp1_partial",
-                    })
+                    trades.append(
+                        {
+                            "entry_time": position["entry_time"],
+                            "exit_time": df.index[i],
+                            "side": position["side"],
+                            "pnl": pnl1,
+                            "reason": "tp1_partial",
+                        }
+                    )
                     position["qty"] -= partial_qty
                     position["stop"] = position["entry"]
                     position["partial_done"] = True
@@ -154,10 +167,15 @@ def run_backtest(df):
             if reason:
                 equity += exit_pnl
                 daily_pnl += exit_pnl
-                trades.append({
-                    "entry_time": position["entry_time"], "exit_time": df.index[i],
-                    "side": position["side"], "pnl": exit_pnl, "reason": reason,
-                })
+                trades.append(
+                    {
+                        "entry_time": position["entry_time"],
+                        "exit_time": df.index[i],
+                        "side": position["side"],
+                        "pnl": exit_pnl,
+                        "reason": reason,
+                    }
+                )
                 position = None
 
         if position is None and daily_pnl > -CAPITAL * DAILY_LOSS_LIMIT:
@@ -171,10 +189,14 @@ def run_backtest(df):
                 obv_up = row["obv"] > df["obv"].iloc[i - 5] if i >= 5 else False
                 obv_dn = row["obv"] < df["obv"].iloc[i - 5] if i >= 5 else False
 
-                if (regime == "UPTREND" and row["close"] > prev["high"]
-                        and row["volume"] >= row["vol_sma"]
-                        and row["close"] > row["vwap"]
-                        and obv_up and row["atr_pct"] < ATR_NORMAL_MAX):
+                if (
+                    regime == "UPTREND"
+                    and row["close"] > prev["high"]
+                    and row["volume"] >= row["vol_sma"]
+                    and row["close"] > row["vwap"]
+                    and obv_up
+                    and row["atr_pct"] < ATR_NORMAL_MAX
+                ):
                     entry = row["close"]
                     stop = entry - 2.0 * row["atr"]
                     risk = entry - stop
@@ -182,15 +204,23 @@ def run_backtest(df):
                         qty = (CAPITAL * RISK_PER_TRADE) / risk
                         qty = min(qty, CAPITAL * MAX_EXPOSURE / entry)
                         position = {
-                            "side": "LONG", "entry": entry, "stop": stop,
-                            "tp1": entry + risk, "tp2": entry + 2 * risk,
-                            "qty": qty, "partial_done": False,
+                            "side": "LONG",
+                            "entry": entry,
+                            "stop": stop,
+                            "tp1": entry + risk,
+                            "tp2": entry + 2 * risk,
+                            "qty": qty,
+                            "partial_done": False,
                             "entry_time": df.index[i],
                         }
-                elif (regime == "DOWNTREND" and row["close"] < prev["low"]
-                        and row["volume"] >= row["vol_sma"]
-                        and row["close"] < row["vwap"]
-                        and obv_dn and row["atr_pct"] < ATR_NORMAL_MAX):
+                elif (
+                    regime == "DOWNTREND"
+                    and row["close"] < prev["low"]
+                    and row["volume"] >= row["vol_sma"]
+                    and row["close"] < row["vwap"]
+                    and obv_dn
+                    and row["atr_pct"] < ATR_NORMAL_MAX
+                ):
                     entry = row["close"]
                     stop = entry + 2.0 * row["atr"]
                     risk = stop - entry
@@ -198,9 +228,13 @@ def run_backtest(df):
                         qty = (CAPITAL * RISK_PER_TRADE) / risk
                         qty = min(qty, CAPITAL * MAX_EXPOSURE / entry)
                         position = {
-                            "side": "SHORT", "entry": entry, "stop": stop,
-                            "tp1": entry - risk, "tp2": entry - 2 * risk,
-                            "qty": qty, "partial_done": False,
+                            "side": "SHORT",
+                            "entry": entry,
+                            "stop": stop,
+                            "tp1": entry - risk,
+                            "tp2": entry - 2 * risk,
+                            "qty": qty,
+                            "partial_done": False,
                             "entry_time": df.index[i],
                         }
 
@@ -215,8 +249,7 @@ def run_backtest(df):
 
 def metrics(trades, equity_end, max_dd):
     if not trades:
-        return {"trades": 0, "winrate": 0, "pf": 0, "pnl": 0,
-                "dd": 0, "return_pct": 0, "avg_r": 0}
+        return {"trades": 0, "winrate": 0, "pf": 0, "pnl": 0, "dd": 0, "return_pct": 0, "avg_r": 0}
     pnl_series = pd.Series([t["pnl"] for t in trades])
     wins = pnl_series[pnl_series > 0]
     losses = pnl_series[pnl_series <= 0]
@@ -249,9 +282,11 @@ def walk_forward(df, n_windows=6):
         m["from"] = chunk.index[0].strftime("%Y-%m-%d")
         m["to"] = chunk.index[-1].strftime("%Y-%m-%d")
         rows.append(m)
-        print(f"  окно {k+1}: {m['from']}..{m['to']}  "
-              f"сделок {m['trades']:>3}  WR {m['winrate']:>5}%  "
-              f"PF {str(m['pf']):>5}  DD {m['dd']:>6}%  ret {m['return_pct']:+.2f}%")
+        print(
+            f"  окно {k + 1}: {m['from']}..{m['to']}  "
+            f"сделок {m['trades']:>3}  WR {m['winrate']:>5}%  "
+            f"PF {str(m['pf']):>5}  DD {m['dd']:>6}%  ret {m['return_pct']:+.2f}%"
+        )
     return pd.DataFrame(rows)
 
 
