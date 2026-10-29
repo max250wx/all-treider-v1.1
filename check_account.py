@@ -1,8 +1,9 @@
+import os
 """Проверка: доступен ли аккаунт и маркет-данные."""
 
 from t_tech.invest import Client
 
-TOKEN = "t.ftq9FmrqQbILuhhqvE0t4YBkCsWJjRpuFqXBVu3mqViwX89DezqliMHxjcgbzkgri4mbHK3A37xlWaqSHeIWSQ"
+TOKEN = os.getenv("T_INVEST_TOKEN", "").strip()
 
 with Client(TOKEN) as client:
     print("1. Проверка аккаунтов...")

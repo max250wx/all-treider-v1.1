@@ -9,8 +9,9 @@ from aiogram.types import Message
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 
-BOT_TOKEN = "8870582892:AAGiWiCSPt5aZvol7GWzDGMixSCvjaRywa8"
-
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+if not BOT_TOKEN:
+    raise RuntimeError("Не задана переменная окружения TELEGRAM_BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 

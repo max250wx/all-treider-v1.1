@@ -1,10 +1,11 @@
+import os
 """Минимальная диагностика: только стакан."""
 
 import time
 from t_tech.invest import Client
 from t_tech.invest.schemas import OrderBookInstrument
 
-TOKEN = "t.ftq9FmrqQbILuhhqvE0t4YBkCsWJjRpuFqXBVu3mqViwX89DezqliMHxjcgbzkgri4mbHK3A37xlWaqSHeIWSQ"
+TOKEN = os.getenv("T_INVEST_TOKEN", "").strip()
 FIGI = "BBG004730N88"
 
 with Client(TOKEN) as client:

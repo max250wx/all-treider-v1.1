@@ -9,7 +9,9 @@ from t_tech.invest import Client
 from t_tech.invest.schemas import OrderBookInstrument
 
 
-TOKEN = "t.ftq9FmrqQbILuhhqvE0t4YBkCsWJjRpuFqXBVu3mqViwX89DezqliMHxjcgbzkgri4mbHK3A37xlWaqSHeIWSQ"
+TOKEN = os.getenv("T_INVEST_TOKEN", "").strip()
+if not TOKEN:
+    raise RuntimeError("Не задана переменная окружения T_INVEST_TOKEN")
 INSTRUMENT_ID = "SBER"
 ORDERBOOK_DEPTH = 10
 ORDERBOOK_INTERVAL_SEC = 5

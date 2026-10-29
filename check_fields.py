@@ -1,9 +1,10 @@
+import os
 """Смотрим, какие поля есть у объекта Trade."""
 
 from datetime import datetime, timedelta, timezone
 from t_tech.invest import Client
 
-TOKEN = "t.ftq9FmrqQbILuhhqvE0t4YBkCsWJjRpuFqXBVu3mqViwX89DezqliMHxjcgbzkgri4mbHK3A37xlWaqSHeIWSQ"
+TOKEN = os.getenv("T_INVEST_TOKEN", "").strip()
 FIGI = "BBG004730N88"
 
 with Client(TOKEN) as client:

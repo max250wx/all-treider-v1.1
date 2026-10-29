@@ -1,6 +1,7 @@
 """REST-сборщик стакана и сделок для нескольких тикеров (GAZP + RUAL)."""
 
 import csv
+from pathlib import Path
 import os
 import time
 from datetime import datetime, timedelta, timezone
@@ -8,7 +9,11 @@ from datetime import datetime, timedelta, timezone
 from t_tech.invest import Client
 
 
-TOKEN = "t.ftq9FmrqQbILuhhqvE0t4YBkCsWJjRpuFqXBVu3mqViwX89DezqliMHxjcgbzkgri4mbHK3A37xlWaqSHeIWSQ"
+TOKEN = os.getenv("T_INVEST_TOKEN", "").strip()
+if not TOKEN:
+    raise RuntimeError("Не задана переменная окружения T_INVEST_TOKEN")
+
+WORK_DIR = Path(__file__).resolve().parent
 
 TICKERS = ["GAZP", "RUAL"]
 
@@ -18,18 +23,69 @@ TRADES_LOOKBACK_SEC = 60
 SEEN_TRADES = {t: set() for t in TICKERS}
 
 
+def load_seen_trades(ticker):
+    """Восстанавливает ключи дедупликации атомарно из CSV при запуске."""
+    filename = Path(tr_file(ticker))
+    if not filename.exists() or filename.stat().st_size == 0:
+        return 0
+
+    pending = set()
+    with filename.open("r", newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        required = {"timestamp", "ticker", "figi", "price", "quantity", "direction"}
+        if not reader.fieldnames or not required.issubset(reader.fieldnames):
+            raise RuntimeError(
+                f"Невозможно восстановить дедупликацию: неверная схема {filename}"
+            )
+
+        for row in reader:
+            if row.get("ticker", "").strip().upper() != ticker.upper():
+                continue
+            try:
+                key = (
+                    str(row["figi"]),
+                    row["timestamp"],
+                    float(row["price"]),
+                    int(row["quantity"]),
+                    int(row["direction"]),
+                )
+            except (ValueError, TypeError, KeyError):
+                raise RuntimeError(
+                    f"Некорректная строка в {filename}; "
+                    "файл не изменён, проверьте CSV вручную."
+                )
+            pending.add(key)
+
+    new_keys = pending - SEEN_TRADES[ticker]
+    SEEN_TRADES[ticker].update(pending)
+    return len(new_keys)
+
+
 def ob_file(ticker):
-    return f"orderbook_{ticker}.csv"
+    return str(WORK_DIR / "orderbook_raw_rest.csv")
 
 
 def tr_file(ticker):
-    return f"trades_{ticker}.csv"
+    return str(WORK_DIR / "trades_raw_rest.csv")
 
 
 def _ensure_header(filename, headers):
-    if not os.path.exists(filename):
-        with open(filename, "w", newline="", encoding="utf-8") as f:
+    path = Path(filename)
+    if not path.exists() or path.stat().st_size == 0:
+        with path.open("w", newline="", encoding="utf-8") as f:
             csv.writer(f).writerow(headers)
+        return
+
+    with path.open("r", newline="", encoding="utf-8-sig") as f:
+        actual = next(csv.reader(f), [])
+
+    if actual != headers:
+        raise RuntimeError(
+            f"Несовместимый заголовок CSV: {path}. "
+            f"Ожидался: {headers}; найден: {actual}. "
+            "Файл не изменён; сохраните резервную копию и "
+            "проверьте схему вручную."
+        )
 
 
 def _price_to_float(p):
@@ -65,11 +121,11 @@ def save_new_trades(ticker, trades_list):
             price = _price_to_float(t.price)
             qty = t.quantity
             direction = int(t.direction) if t.direction is not None else 0
-            key = (ts, price, qty, direction)
+            key = (str(t.figi), ts, price, qty, direction)
             if key in SEEN_TRADES[ticker]:
                 continue
+            w.writerow([ts, ticker, t.figi, price, qty, direction])
             SEEN_TRADES[ticker].add(key)
-            w.writerow([ts, t.figi, price, qty, direction])
             new_count += 1
     return new_count
 
@@ -110,11 +166,15 @@ def main():
     for i in range(1, 6):
         ob_headers.extend([f"ask{i}_price", f"ask{i}_qty"])
 
-    tr_headers = ["timestamp", "figi", "price", "quantity", "direction"]
+    tr_headers = ["timestamp", "ticker", "figi", "price", "quantity", "direction"]
 
     for t in TICKERS:
         _ensure_header(ob_file(t), ob_headers)
         _ensure_header(tr_file(t), tr_headers)
+
+    for t in TICKERS:
+        loaded = load_seen_trades(t)
+        print(f"{t}: восстановлено ключей сделок: {loaded}")
 
     print("Подключаемся к T-Invest API...")
 
@@ -130,8 +190,10 @@ def main():
                 print(f"  {t}: НЕ НАЙДЕН — пропускаем")
 
         if not instruments:
-            print("Ни одного инструмента не найдено")
-            return
+            raise RuntimeError(
+                "Ни одного инструмента не найдено. "
+                "Проверьте доступ к API и идентификаторы инструментов."
+            )
 
         print("\nCtrl+C для остановки.\n")
 
@@ -151,6 +213,8 @@ def main():
                         ob_resp = client.market_data.get_order_book(figi=figi, depth=10)
                         save_orderbook(ticker, ob_resp, now_iso)
                     except Exception as e:
+                        print(f"ОШИБКА стакана {ticker}: {type(e).__name__}: {e}",
+                              flush=True)
                         status_parts.append(f"{ticker}:OB_err")
 
                     # Сделки
@@ -162,10 +226,13 @@ def main():
                         )
                         new_t = save_new_trades(ticker, trades_resp.trades)
                         totals[ticker] += new_t
-                    except Exception:
+                    except Exception as e:
+                        print(f"ОШИБКА сделок {ticker}: {type(e).__name__}: {e}",
+                              flush=True)
                         new_t = 0
-
-                    status_parts.append(f"{ticker}+{new_t}")
+                        status_parts.append(f"{ticker}:TR_err")
+                    else:
+                        status_parts.append(f"{ticker}+{new_t}")
 
                 print("[" + datetime.now().strftime('%H:%M:%S') + "] цикл",
                       cycle, ":", " | ".join(status_parts),
@@ -179,3 +246,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
