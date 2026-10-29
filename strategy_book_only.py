@@ -2,11 +2,11 @@
 Вход в топ-квартиле book, выход через 3-6 баров."""
 
 import warnings
-warnings.filterwarnings("ignore")
 
-import numpy as np
 import pandas as pd
 from backtesting import Backtest, Strategy
+
+warnings.filterwarnings("ignore")
 
 
 def load_combined(path="combined_data.csv"):
@@ -23,13 +23,13 @@ def load_combined(path="combined_data.csv"):
 
 
 class BookStrategy(Strategy):
-    book_high = 0.30          # порог для LONG (top quartile)
-    book_low = -0.30          # порог для SHORT
-    max_hold_bars = 6         # держим 30 сек
-    stop_pct = 0.0015         # 0.15% стоп
-    tp_pct = 0.0015           # 0.15% тейк
+    book_high = 0.30  # порог для LONG (top quartile)
+    book_low = -0.30  # порог для SHORT
+    max_hold_bars = 6  # держим 30 сек
+    stop_pct = 0.0015  # 0.15% стоп
+    tp_pct = 0.0015  # 0.15% тейк
     size = 100
-    use_maker_fees = True     # комиссия 0.015% (maker)
+    use_maker_fees = True  # комиссия 0.015% (maker)
 
     def init(self):
         bi = self.data.df["book_imbalance"].to_numpy().copy()
@@ -55,16 +55,12 @@ class BookStrategy(Strategy):
         price = self.data.Close[-1]
 
         if book > self.book_high:
-            self.buy(size=self.size,
-                     sl=price * (1 - self.stop_pct),
-                     tp=price * (1 + self.tp_pct))
+            self.buy(size=self.size, sl=price * (1 - self.stop_pct), tp=price * (1 + self.tp_pct))
             self.entry_bar = i
             return
 
         if book < self.book_low:
-            self.sell(size=self.size,
-                      sl=price * (1 + self.stop_pct),
-                      tp=price * (1 - self.tp_pct))
+            self.sell(size=self.size, sl=price * (1 + self.stop_pct), tp=price * (1 - self.tp_pct))
             self.entry_bar = i
 
 
@@ -72,9 +68,16 @@ def run(data, maker=True):
     comm = 0.00015 if maker else 0.0003
     spread = 0.0 if maker else 0.0002
 
-    bt = Backtest(data, BookStrategy, cash=1_000_000,
-                  commission=comm, spread=spread, margin=0.2,
-                  exclusive_orders=True, trade_on_close=False)
+    bt = Backtest(
+        data,
+        BookStrategy,
+        cash=1_000_000,
+        commission=comm,
+        spread=spread,
+        margin=0.2,
+        exclusive_orders=True,
+        trade_on_close=False,
+    )
     return bt.run()
 
 
